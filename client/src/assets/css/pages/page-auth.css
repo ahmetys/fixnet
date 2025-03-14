@@ -1,0 +1,83 @@
+/* Authentication pages style */
+.authentication-wrapper {
+  display: flex;
+  flex-basis: 100%;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.authentication-wrapper .authentication-basic {
+  align-items: center;
+  justify-content: center;
+}
+
+.authentication-wrapper .authentication-inner {
+  max-width: 400px;
+  position: relative;
+}
+
+.authentication-wrapper.authentication-basic .authentication-inner {
+  width: 100%;
+}
+
+.authentication-wrapper .card {
+  border: 0;
+  box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.12);
+  border-radius: 0.5rem;
+}
+
+.authentication-wrapper .app-brand {
+  margin-bottom: 1.5rem;
+}
+
+.authentication-wrapper .app-brand-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.authentication-wrapper .app-brand-logo {
+  height: 2rem;
+  width: 2rem;
+  margin-right: 0.5rem;
+}
+
+.authentication-wrapper .app-brand-text {
+  font-size: 1.5rem;
+  letter-spacing: -0.5px;
+}
+
+.authentication-wrapper .auth-footer-btn .btn {
+  padding: 0.595rem 0.7rem;
+  margin-right: 0.5rem;
+}
+
+/* Password toggle icon */
+.form-password-toggle .input-group-text {
+  cursor: pointer;
+}
+
+/* Dark mode adjustments */
+html.dark-style .authentication-wrapper .authentication-bg {
+  background-color: #283144;
+}
+
+@media (min-height: 700px) {
+  .authentication-wrapper .authentication-inner {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 575.98px) {
+  .authentication-wrapper .authentication-inner {
+    max-width: 340px;
+  }
+}
+
+/* App brand animation */
+.app-brand:hover .app-brand-logo svg {
+  transform: rotate(5deg);
+  transition: transform 0.3s ease-in-out;
+}

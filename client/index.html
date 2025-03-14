@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>FIXNET</title>
+
+    <!-- PWA Desteği -->
+    <meta name="theme-color" content="#7367f0" />
+    <meta name="description" content="Teknik servis yönetim sistemi" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="RepairShop" />
+
+    <!-- Manifest Bağlantısı -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple için özel ikon ve splash ekranları -->
+    <link rel="apple-touch-icon" href="/icons/apple-icon-152x152.png" />
+    <link rel="apple-touch-startup-image" href="/icons/splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&ampdisplay=swap" rel="stylesheet" />
+    <style>
+      /* Prevent iOS auto zoom on input focus and improve zoom blocking */
+      * {
+        touch-action: manipulation;
+      }
+
+      html,
+      body {
+        touch-action: pan-x pan-y;
+        -webkit-text-size-adjust: 100%;
+        -moz-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        overscroll-behavior: none;
+        overflow: hidden;
+        height: 100%;
+        position: fixed;
+        width: 100%;
+      }
+
+      #root {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        height: 100%;
+        width: 100%;
+        position: absolute;
+      }
+
+      /* Form elements */
+      input,
+      input[type="text"],
+      input[type="number"],
+      input[type="email"],
+      input[type="tel"],
+      input[type="password"],
+      input[type="search"],
+      select,
+      textarea {
+        font-size: 16px !important; /* 16px veya daha büyük olması iOS'un yakınlaştırmasını engeller */
+        max-height: 100%;
+        touch-action: manipulation;
+      }
+
+      /* PWA Yükleme İndikatörü */
+      #pwa-install-prompt {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #7367f0;
+        color: white;
+        padding: 16px;
+        text-align: center;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        display: none;
+        z-index: 9999;
+      }
+      #pwa-install-prompt button {
+        background: white;
+        color: #7367f0;
+        border: none;
+        padding: 8px 16px;
+        margin-left: 16px;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+      }
+    </style>
+    <script>
+      // Pinch zoom engelleyici
+      document.addEventListener(
+        "touchmove",
+        function (event) {
+          if (event.scale !== 1) {
+            event.preventDefault();
+          }
+        },
+        { passive: false }
+      );
+
+      // Çift tıklama zoom engelleyici
+      let lastTouchEnd = 0;
+      document.addEventListener(
+        "touchend",
+        function (event) {
+          const now = Date.now();
+          if (now - lastTouchEnd <= 300) {
+            event.preventDefault();
+          }
+          lastTouchEnd = now;
+        },
+        { passive: false }
+      );
+
+      // Görünüm hazır olduğunda
+      window.addEventListener("DOMContentLoaded", function () {
+        // Tarayıcının zoom özelliğini sıfırlama
+        document.body.style.zoom = 1;
+
+        // Küçük ekranlarda initial-scale sıfırlama
+        const viewport = document.querySelector('meta[name="viewport"]');
+        if (window.innerWidth < 768) {
+          viewport.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- PWA Yükleme Promptu -->
+    <div id="pwa-install-prompt">
+      Bu uygulamayı cihazınıza yükleyebilirsiniz
+      <button id="pwa-install-button">Yükle</button>
+      <button id="pwa-dismiss-button" style="background: transparent; color: white">Kapat</button>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
