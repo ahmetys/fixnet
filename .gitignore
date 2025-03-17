@@ -1,4 +1,4 @@
-/.cursor
+/.cursor/rules/projectrules.mdc
 /client/node_modules
 /server/node_modules
 /server/.env
