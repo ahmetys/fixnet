@@ -68,19 +68,25 @@ const Dashboard = () => {
     waiting_parts: "info",
     repaired: "success",
     not_repaired: "danger",
+    delivered: "primary",
   };
 
   // Status açıklamaları
   const statusLabels = {
     pending: "Bekliyor",
-    waiting_parts: "İşlemde",
-    repaired: "Tamir Edildi",
-    not_repaired: "Tamir Edilemez",
+    waiting_parts: "Parça Bekliyor",
+    repaired: "Onarildi",
+    not_repaired: "Onarilamadi",
+    delivered: "Teslim Edildi",
   };
 
   // Gelir trendi grafiği için veri
   const revenueChartData = {
-    labels: dashboardData.revenueStats.trend.map((item) => item.month),
+    labels: dashboardData.revenueStats.trend.map((item) => {
+      // Ay formatını YYYY-MM'den MM/YYYY'ye dönüştür
+      const [year, month] = item.month.split("-");
+      return `${month}/${year}`;
+    }),
     datasets: [
       {
         label: "Gelir",
@@ -238,14 +244,33 @@ const Dashboard = () => {
                     y: {
                       beginAtZero: true,
                       ticks: {
-                        callback: (value) => `₺${value}`,
+                        callback: (value) => `₺${value.toLocaleString()}`,
+                      },
+                    },
+                    x: {
+                      grid: {
+                        display: false,
+                      },
+                      ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
                       },
                     },
                   },
                   plugins: {
                     tooltip: {
                       callbacks: {
-                        label: (context) => `Gelir: ₺${context.raw}`,
+                        label: (context) => `Gelir: ₺${context.raw.toLocaleString()}`,
+                      },
+                    },
+                    legend: {
+                      position: "top",
+                    },
+                    title: {
+                      display: true,
+                      text: "Son 12 Ay Gelir Trendi",
+                      font: {
+                        size: 14,
                       },
                     },
                   },
@@ -317,7 +342,7 @@ const Dashboard = () => {
             </Card.Header>
             <Card.Body>
               <div className="table-responsive">
-                <Table hover responsive className="table-borderless">
+                <Table responsive className="table-borderless">
                   <thead>
                     <tr>
                       <th>No</th>
@@ -331,16 +356,17 @@ const Dashboard = () => {
                     {dashboardData.recentTickets.map((ticket) => (
                       <tr key={ticket.ticket_id}>
                         <td>
-                          <strong>{ticket.ticket_no}</strong>
+                          <strong>#{ticket.ticket_id}</strong>
                         </td>
                         <td>{ticket.customer_name}</td>
                         <td>
-                          <small className="text-truncate">
-                            {ticket.device_brand_name} {ticket.device_type_name} {ticket.device_model_name || ""}
-                          </small>
+                          <small className="text-truncate">{ticket.device_model_name || ""}</small>
                         </td>
-                        <td>
-                          <Badge bg={statusColors[ticket.ticket_status]}>{statusLabels[ticket.ticket_status]}</Badge>
+                        <td className="d-flex flex-row align-items-center">
+                          <Badge className="me-2" bg={statusColors[ticket.ticket_status]}>
+                            {statusLabels[ticket.ticket_status]}
+                          </Badge>
+                          {ticket.ticket_delivered ? <Badge bg="primary">Teslim Edildi</Badge> : null}
                         </td>
                         <td>
                           <small>{new Date(ticket.created_at).toLocaleDateString("tr-TR")}</small>

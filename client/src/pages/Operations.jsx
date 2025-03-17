@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
 import * as operationService from "../services/operation.service.js";
 import { useLocation } from "react-router-dom";
-import { useNotification } from "../hooks/useNotification.js";
+import { useNotification } from "../contexts/NotificationContext";
 
 const Operations = () => {
   const location = useLocation();
   const [operations, setoperations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, handleApiError } = useNotification();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -18,7 +17,6 @@ const Operations = () => {
   // Add modal state
   const [showModal, setShowModal] = useState(false);
   const [operationName, setOperationName] = useState("");
-  const [nameError, setNameError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [currentOperationId, setCurrentOperationId] = useState(null);
 
@@ -28,11 +26,8 @@ const Operations = () => {
       setLoading(true);
       const data = await operationService.getAllOperations();
       setoperations(data);
-      setError(null);
-    } catch (err) {
-      setError("Failed to load operations");
-      console.error(err);
-      showError("Please try again later.");
+    } catch (error) {
+      handleApiError(error);
     } finally {
       setLoading(false);
     }
@@ -40,7 +35,6 @@ const Operations = () => {
 
   useEffect(() => {
     fetchData();
-
     // Notification message if redirected from another page
     if (location.state?.success) {
       showSuccess("Success");
@@ -69,14 +63,13 @@ const Operations = () => {
   };
 
   const handleDeleteOperation = async (id) => {
-    if (window.confirm("Are you sure you want to delete this operation?")) {
+    if (window.confirm("Bu servis işlemini silmek istediğinize emin misiniz?")) {
       try {
         await operationService.deleteOperation(id);
-        showSuccess("The operation has been deleted.");
+        showSuccess("Servis işlemi başarıyla silindi.");
         fetchData(); // Refresh data after deletion
       } catch (error) {
-        console.error("Error deleting operation:", error);
-        showError("Delete Failed", "Failed to delete operation. Please try again.");
+        handleApiError(error);
       }
     }
   };
@@ -84,7 +77,6 @@ const Operations = () => {
   // Modal functions
   const openAddModal = () => {
     setOperationName("");
-    setNameError("");
     setIsEditing(false);
     setCurrentOperationId(null);
     setShowModal(true);
@@ -92,7 +84,6 @@ const Operations = () => {
 
   const openUpdateModal = (operation) => {
     setOperationName(operation.operation_name);
-    setNameError("");
     setIsEditing(true);
     setCurrentOperationId(operation.operation_id);
     setShowModal(true);
@@ -104,15 +95,12 @@ const Operations = () => {
 
   const handleNameChange = (e) => {
     setOperationName(e.target.value);
-    if (e.target.value.trim()) {
-      setNameError("");
-    }
   };
 
-  const handleSavedeviceModel = async () => {
+  const handleSaveNewServiceOperation = async () => {
     // Validate
     if (!operationName.trim()) {
-      setNameError("Operation name is required");
+      showError("Servis işlemi adı gereklidir");
       return;
     }
 
@@ -122,19 +110,18 @@ const Operations = () => {
         await operationService.updateOperation(currentOperationId, {
           operation_name: operationName.trim(),
         });
-        showSuccess("The operation has been updated.");
+        showSuccess("Servis işlemi başarıyla güncellendi.");
       } else {
         // Create new device type
         await operationService.createOperation({
           operation_name: operationName.trim(),
         });
-        showSuccess("New operation has been added.");
+        showSuccess("Yeni servis işlemi başarıyla eklendi.");
       }
       closeModal();
       fetchData(); // Refresh the list
     } catch (error) {
-      console.error("Error saving operation:", error);
-      showError(`${isEditing ? "Update" : "Create"} Failed`, `Failed to ${isEditing ? "update" : "create"} operation. Please try again.`);
+      handleApiError(error);
     }
   };
 
@@ -152,8 +139,7 @@ const Operations = () => {
     return pageNumbers;
   };
 
-  if (loading) return <div className="text-center p-5">Loading operations...</div>;
-  if (error) return <div className="alert alert-danger m-5">{error}</div>;
+  if (loading) return <div className="text-center p-5">Servis işlemleri yükleniyor...</div>;
 
   return (
     <div className="container-xxl flex-grow-1 container-p-y">
@@ -161,11 +147,11 @@ const Operations = () => {
       <div className="card bg-transparent shadow-none border-0 my-4">
         <div className="card-body p-0 d-flex justify-content-between align-items-center">
           <div>
-            <h4 className="fw-bold py-3 mb-4"> Operations</h4>
+            <h4 className="fw-bold py-3 mb-4"> Servis İşlemleri</h4>
           </div>
           <div>
             <button type="button" className="btn btn-primary" onClick={openAddModal}>
-              Add
+              Servis İşlemi Ekle
             </button>
           </div>
         </div>
@@ -177,38 +163,26 @@ const Operations = () => {
           <div className="row g-3">
             <div className="col-md-12">
               <div className="form-floating form-floating-outline">
-                <input type="text" className="form-control" id="searchInput" placeholder="Search by name or ID" value={searchTerm} onChange={handleSearch} />
-                <label htmlFor="searchInput">Search</label>
+                <input type="text" className="form-control" id="searchInput" placeholder="İsim veya ID ile arama" value={searchTerm} onChange={handleSearch} />
+                <label htmlFor="searchInput">Arama</label>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="alert alert-danger" role="alert">
-          {error}
-        </div>
-      )}
-
       {/* Data Table */}
       <div className="card">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="card-title mb-0">Operations List</h5>
-          <div className="card-tools">
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => window.location.reload()}>
-              <i className="bx bx-refresh me-1"></i> Refresh
-            </button>
-          </div>
+          <h5 className="card-title mb-0">Servis İşlemleri Listesi</h5>
         </div>
         <div className="table-responsive text-nowrap">
           <table className="table table-hover">
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Operation</th>
-                <th>Actions</th>
+                <th>İşlem Adı</th>
+                <th>İşlemler</th>
               </tr>
             </thead>
             <tbody className="table-border-bottom-0">
@@ -216,14 +190,14 @@ const Operations = () => {
                 <tr>
                   <td colSpan="3" className="text-center py-4">
                     <div className="spinner-border text-primary" role="status">
-                      <span className="visually-hidden">Loading...</span>
+                      <span className="visually-hidden">Yükleniyor...</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredOperations.length === 0 ? (
                 <tr>
                   <td colSpan="3" className="text-center py-4">
-                    No records found
+                    Kayıtlı işlem bulunamadı
                   </td>
                 </tr>
               ) : (
@@ -275,7 +249,7 @@ const Operations = () => {
               </ul>
             </nav>
             <div className="text-center text-muted mt-1">
-              Total {filteredOperations.length} records, {totalPages} pages
+              Toplam {filteredOperations.length} kayıt, {totalPages} sayfa
             </div>
           </div>
         )}
@@ -287,25 +261,24 @@ const Operations = () => {
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title" id="operationModalLabel">
-                {isEditing ? "Edit Operation" : "Add Operation"}
+                {isEditing ? "Servis İşlemi Düzenle" : "Servis İşlemi Ekle"}
               </h5>
               <button type="button" className="btn-close" onClick={closeModal} aria-label="Close"></button>
             </div>
             <div className="modal-body">
               <div className="mb-3">
                 <label htmlFor="operationName" className="form-label">
-                  Operation Name
+                  İşlem Adı
                 </label>
-                <input type="text" className={`form-control ${nameError ? "is-invalid" : ""}`} id="operationName" value={operationName} onChange={handleNameChange} />
-                {nameError && <div className="invalid-feedback">{nameError}</div>}
+                <input type="text" className={`form-control`} id="operationName" value={operationName} onChange={handleNameChange} />
               </div>
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={closeModal}>
-                Cancel
+                İptal
               </button>
-              <button type="button" className="btn btn-primary" onClick={handleSavedeviceModel}>
-                {isEditing ? "Update" : "Save"}
+              <button type="button" className="btn btn-primary" onClick={handleSaveNewServiceOperation}>
+                {isEditing ? "Güncelle" : "Kaydet"}
               </button>
             </div>
           </div>

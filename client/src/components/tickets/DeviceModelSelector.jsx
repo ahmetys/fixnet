@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import * as deviceModelService from "../../services/deviceModel.service";
-import { useNotification } from "../../hooks/useNotification";
+import * as deviceModelService from "../../services/deviceManagement.service";
+import { useNotification } from "../../contexts/NotificationContext";
 
 function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selectedDeviceType, selectedDeviceBrand, showValidation = false }) {
   const [deviceModels, setDeviceModels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
   const [deviceModelSearchTerm, setDeviceModelSearchTerm] = useState("");
@@ -19,44 +19,44 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
   });
 
   const deviceModelInputRef = useRef(null);
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, handleApiError } = useNotification();
 
-  // Type değiştiğinde veya silindiğinde search term'i temizle
+  // Hata gösterme durumunun kontrolü
+  const validationError = showValidation && !selectedDeviceModel?.device_model_id;
+
+  // Bağımlılıklar değiştiğinde arama terimini temizle
   useEffect(() => {
-    // Eğer type silinmişse veya değişmişse ve search term hala doluysa temizle
+    // Cihaz türü seçilmediğinde veya değiştiğinde
     if (!selectedDeviceType?.device_type_id) {
       setDeviceModelSearchTerm("");
       setDeviceModelDropdownLocked(false);
     }
   }, [selectedDeviceType]);
 
-  // Brand değiştiğinde de search term'i temizle
   useEffect(() => {
-    // Eğer brand silinmişse search term'i temizle
+    // Marka seçilmediğinde veya değiştiğinde
     if (!selectedDeviceBrand?.device_brand_id) {
       setDeviceModelSearchTerm("");
       setDeviceModelDropdownLocked(false);
     }
   }, [selectedDeviceBrand]);
 
-  // Seçili model değiştiğinde input'u güncelle
+  // Seçili model değiştiğinde input değerini güncelle
   useEffect(() => {
-    // Eğer seçili bir model varsa, input değerini güncelle
     if (selectedDeviceModel?.device_model_id && selectedDeviceModel?.device_model_name) {
       setDeviceModelSearchTerm(selectedDeviceModel.device_model_name);
       setDeviceModelDropdownLocked(true);
     } else if (!selectedDeviceModel?.device_model_id) {
-      // Eğer seçili model temizlendiyse, input değerini de temizle
       setDeviceModelSearchTerm("");
       setDeviceModelDropdownLocked(false);
     }
   }, [selectedDeviceModel]);
 
-  // Fetch device models when selectedDeviceType changes
+  // Cihaz modellerini getir
   useEffect(() => {
     const fetchDeviceModels = async () => {
+      // Cihaz türü seçilmemişse modelleri temizle
       if (!selectedDeviceType?.device_type_id) {
-        // Eğer tip seçilmediyse, modelleri temizle
         setDeviceModels([]);
         setLoading(false);
         return;
@@ -64,12 +64,12 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
 
       try {
         setLoading(true);
-        // Sadece seçili tipe ait modelleri getir
         const data = await deviceModelService.getAllDeviceModelsByType(selectedDeviceType.device_type_id);
         setDeviceModels(data);
+        setFetchError(null);
 
-        // Eğer bir model seçiliydi ve farklı bir tipe geçildiyse model seçimini temizle
-        if (selectedDeviceModel && selectedDeviceModel.device_model_id) {
+        // Seçili modelin varlığını kontrol et
+        if (selectedDeviceModel?.device_model_id) {
           const modelExists = data.some((model) => model.device_model_id === selectedDeviceModel.device_model_id);
           if (!modelExists) {
             onDeviceModelSelect({
@@ -79,11 +79,9 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
             setDeviceModelSearchTerm("");
           }
         }
-
-        setFetchError(null);
       } catch (err) {
-        setFetchError("Failed to load device models");
-        console.error(err);
+        setFetchError("Cihaz modelleri yüklenirken hata oluştu");
+        handleApiError(err);
       } finally {
         setLoading(false);
       }
@@ -91,7 +89,7 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
 
     fetchDeviceModels();
 
-    // Type değiştiğinde yeni device model'in type_id ve brand_id değerlerini ayarla
+    // Yeni model oluşturma state'ini güncelle
     if (selectedDeviceType?.device_type_id) {
       setNewDeviceModel((prev) => ({
         ...prev,
@@ -99,21 +97,20 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
         device_brand_id: selectedDeviceBrand?.device_brand_id || "",
       }));
     }
-  }, [selectedDeviceType, selectedDeviceBrand]);
+  }, [selectedDeviceType, selectedDeviceBrand, selectedDeviceModel, onDeviceModelSelect, handleApiError]);
 
-  // Filter device models based on search term
+  // Arama terimine göre filtreleme
   const filteredDeviceModels = deviceModelSearchTerm.length >= 1 ? deviceModels.filter((model) => model.device_model_name.toLowerCase().includes(deviceModelSearchTerm.toLowerCase())) : deviceModels;
 
-  // Handle dropdown visibility
+  // Dropdown durumunu kontrol et
   useEffect(() => {
-    // If search term matches the selected device model, don't show dropdown
+    // Arama terimi seçili model ile eşleşiyorsa dropdown'ı gösterme
     if (deviceModelDropdownLocked && deviceModelSearchTerm === selectedDeviceModel?.device_model_name) {
       setShowDeviceModelDropdown(false);
-      return;
     }
   }, [deviceModelSearchTerm, deviceModelDropdownLocked, selectedDeviceModel]);
 
-  // Close dropdown when clicking outside
+  // Dışarı tıklandığında dropdown'ı kapat
   useEffect(() => {
     function handleClickOutside(event) {
       if (deviceModelInputRef.current && !deviceModelInputRef.current.contains(event.target)) {
@@ -128,9 +125,9 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
   }, []);
 
   const handleFocus = () => {
-    // Eğer tip seçilmemişse, dropdown'ı açma
+    // Cihaz türü seçilmemişse uyarı göster
     if (!selectedDeviceType?.device_type_id) {
-      showError("Please select a device type first");
+      showError("Lütfen önce bir cihaz türü seçin");
       return;
     }
 
@@ -141,15 +138,17 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
     const value = e.target.value;
     setDeviceModelSearchTerm(value);
 
-    // Eğer tip seçilmişse, dropdown'ı göster
+    // Cihaz türü seçilmişse dropdown'ı göster
     if (selectedDeviceType?.device_type_id) {
       setShowDeviceModelDropdown(true);
     }
 
+    // Değer seçili model adından farklıysa kilidi kaldır
     if (value !== selectedDeviceModel?.device_model_name) {
       setDeviceModelDropdownLocked(false);
     }
 
+    // Değer boşsa model seçimini temizle
     if (value === "") {
       onDeviceModelSelect({
         device_model_id: "",
@@ -167,84 +166,77 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
   };
 
   const handleSaveNewDeviceModel = async () => {
+    // Validasyon kontrolleri
     if (!newDeviceModel.device_model_name.trim()) {
-      showError("Device model name cannot be empty");
+      showError("Cihaz model adı boş olamaz");
       return;
     }
 
     if (!selectedDeviceType?.device_type_id) {
-      showError("Please select a device type first");
+      showError("Lütfen önce bir cihaz türü seçin");
       return;
     }
 
     if (!selectedDeviceBrand?.device_brand_id) {
-      showError("Device brand information is missing");
+      showError("Cihaz marka bilgisi eksik");
       return;
     }
 
     try {
-      // Check if a similar device model already exists
+      // Aynı isimde model var mı kontrol et
       const existing = deviceModels.find((model) => model.device_model_name.toLowerCase() === newDeviceModel.device_model_name.toLowerCase());
-
       if (existing) {
-        showError("A device model with this name already exists");
+        showError("Bu isimde bir cihaz modeli zaten mevcut");
         return;
       }
 
-      // Type ve Marka ID'lerini ekle
+      // Tip ve Marka ID'lerini ekle
       const modelData = {
         ...newDeviceModel,
         device_type_id: parseInt(selectedDeviceType.device_type_id, 10),
         device_brand_id: parseInt(selectedDeviceBrand.device_brand_id, 10),
       };
 
-      console.log("Creating model with data:", modelData);
-
-      // Save new device model
+      // Yeni model oluştur
       const createdModelId = await deviceModelService.createDeviceModel(modelData);
-
-      // Fetch the created device model
       const createdModel = await deviceModelService.getDeviceModelById(createdModelId);
 
-      // Update the device models list
+      // Modeller listesini güncelle
       setDeviceModels([...deviceModels, createdModel]);
 
-      // Select the newly created device model
+      // Yeni oluşturulan modeli seç
       onDeviceModelSelect({
         device_model_id: createdModel.device_model_id,
         device_model_name: createdModel.device_model_name,
       });
 
-      // Update UI state
+      // UI durumunu güncelle
       setDeviceModelSearchTerm(createdModel.device_model_name);
       setDeviceModelDropdownLocked(true);
       setShowDeviceModelDropdown(false);
       setShowNewDeviceModelModal(false);
-      showSuccess("New device model added successfully");
+      showSuccess("Yeni cihaz modeli başarıyla eklendi");
 
-      // Reset the form
+      // Formu sıfırla
       setNewDeviceModel({
         device_model_name: "",
         device_type_id: selectedDeviceType.device_type_id,
         device_brand_id: selectedDeviceBrand.device_brand_id,
       });
     } catch (err) {
-      showError("Failed to create device model: " + (err.message || "Unknown error"));
-      console.error(err);
+      showError("Cihaz modeli oluşturulurken hata oluştu");
+      handleApiError(err);
     }
   };
-
-  // Hata gösterme durumunun kontrolü
-  const showError2 = showValidation && !selectedDeviceModel?.device_model_id;
 
   return (
     <>
       <div className="form-floating form-floating-outline mb-4 position-relative" ref={deviceModelInputRef}>
         <input
           type="text"
-          className={`form-control ${showError2 ? "is-invalid" : ""}`}
+          className={`form-control ${validationError ? "is-invalid" : ""}`}
           id="device-model-search"
-          placeholder="Search device model..."
+          placeholder="Cihaz modeli ara..."
           value={deviceModelSearchTerm}
           onChange={handleDeviceModelSearchChange}
           onFocus={handleFocus}
@@ -252,22 +244,22 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
           disabled={loading || !selectedDeviceType?.device_type_id}
         />
         <label htmlFor="device-model-search">
-          Device Model <span className="text-danger">*</span>
+          Cihaz Modeli <span className="text-danger">*</span>
         </label>
-        {showError2 && <div className="invalid-feedback d-block">Device model selection is required</div>}
-        {!selectedDeviceType?.device_type_id && <div className="text-muted small mt-1">Please select a device type first</div>}
+        {validationError && <div className="invalid-feedback d-block">Cihaz modeli seçimi zorunludur</div>}
+        {!selectedDeviceType?.device_type_id && <div className="text-muted small mt-1">Lütfen önce bir cihaz türü seçin</div>}
 
-        {/* Show fetch error if any */}
+        {/* Hata mesajı */}
         {fetchError && <div className="text-danger small mt-1">{fetchError}</div>}
 
-        {/* Loading indicator */}
+        {/* Yükleniyor göstergesi */}
         {loading && (
           <div className="position-absolute top-50 end-0 translate-middle-y me-3">
             <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
           </div>
         )}
 
-        {/* Device Model dropdown */}
+        {/* Cihaz Model dropdown */}
         {showDeviceModelDropdown && !loading && selectedDeviceType?.device_type_id && (
           <div
             className="dropdown-menu d-block position-absolute w-100 overflow-auto"
@@ -298,7 +290,7 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
               ))
             ) : (
               <div className="dropdown-item-text text-center py-2">
-                <div>No matching device models found for this type</div>
+                <div>Bu türe ait eşleşen cihaz modeli bulunamadı</div>
                 <button
                   className="btn btn-sm btn-primary mt-2"
                   onClick={(e) => {
@@ -315,7 +307,7 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
                     }
                   }}
                 >
-                  <i className="ri-add-line me-1"></i> Add New Device Model
+                  <i className="ri-add-line me-1"></i> Yeni Cihaz Modeli Ekle
                 </button>
               </div>
             )}
@@ -323,7 +315,7 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
         )}
       </div>
 
-      {/* New Device Model Modal */}
+      {/* Yeni Cihaz Modeli Modalı */}
       {showNewDeviceModelModal && (
         <div
           className={`modal fade ${showNewDeviceModelModal ? "show" : ""}`}
@@ -336,32 +328,32 @@ function DeviceModelSelector({ selectedDeviceModel, onDeviceModelSelect, selecte
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title" id="newDeviceModelModalLabel">
-                  Add New Device Model for {selectedDeviceType?.device_type_name}
+                  {selectedDeviceType?.device_type_name} için Yeni Cihaz Modeli Ekle
                 </h5>
-                <button type="button" className="btn-close" onClick={() => setShowNewDeviceModelModal(false)} aria-label="Close"></button>
+                <button type="button" className="btn-close" onClick={() => setShowNewDeviceModelModal(false)} aria-label="Kapat"></button>
               </div>
               <div className="modal-body">
                 <div className="mb-3">
                   <label htmlFor="device_model_name" className="form-label">
-                    Device Model Name
+                    Cihaz Model Adı
                   </label>
                   <input type="text" className="form-control" id="device_model_name" name="device_model_name" value={newDeviceModel.device_model_name} onChange={handleNewDeviceModelChange} autoFocus />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label">Device Type</label>
+                  <label className="form-label">Cihaz Türü</label>
                   <input type="text" className="form-control" value={selectedDeviceType?.device_type_name || ""} disabled />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label">Brand</label>
+                  <label className="form-label">Marka</label>
                   <input type="text" className="form-control" value={selectedDeviceBrand?.device_brand_name || ""} disabled />
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline-secondary" onClick={() => setShowNewDeviceModelModal(false)}>
-                  Cancel
+                  İptal
                 </button>
                 <button type="button" className="btn btn-primary" onClick={handleSaveNewDeviceModel}>
-                  Save Device Model
+                  Cihaz Modelini Kaydet
                 </button>
               </div>
             </div>

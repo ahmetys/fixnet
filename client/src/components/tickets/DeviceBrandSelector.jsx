@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import * as deviceBrandService from "../../services/deviceBrand.service";
-import { useNotification } from "../../hooks/useNotification";
+import * as deviceBrandService from "../../services/deviceManagement.service";
+import { useNotification } from "../../contexts/NotificationContext";
 
 function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showValidation = false }) {
   const [deviceBrands, setDeviceBrands] = useState([]);
@@ -17,7 +17,10 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
   });
 
   const deviceBrandInputRef = useRef(null);
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, handleApiError } = useNotification();
+
+  // Hata gösterme durumunun kontrolü
+  const validationError = showValidation && !selectedDeviceBrand?.device_brand_id;
 
   // Seçili marka değiştiğinde input'u güncelle
   useEffect(() => {
@@ -41,15 +44,15 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
         setDeviceBrands(data);
         setFetchError(null);
       } catch (err) {
-        setFetchError("Failed to load device brands");
-        console.error(err);
+        setFetchError("Cihaz markaları yüklenirken hata oluştu");
+        handleApiError(err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchDeviceBrands();
-  }, []);
+  }, [handleApiError]);
 
   // Filter device brands based on search term
   const filteredDeviceBrands = deviceBrandSearchTerm.length >= 1 ? deviceBrands.filter((brand) => brand.device_brand_name.toLowerCase().includes(deviceBrandSearchTerm.toLowerCase())) : deviceBrands;
@@ -108,7 +111,7 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
 
   const handleSaveNewDeviceBrand = async () => {
     if (!newDeviceBrand.device_brand_name.trim()) {
-      showError("Device brand name cannot be empty");
+      showError("Marka adı boş olamaz");
       return;
     }
 
@@ -117,7 +120,7 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
       const existing = deviceBrands.find((brand) => brand.device_brand_name.toLowerCase() === newDeviceBrand.device_brand_name.toLowerCase());
 
       if (existing) {
-        showError("A device brand with this name already exists");
+        showError("Bu isimde bir marka zaten mevcut");
         return;
       }
 
@@ -141,27 +144,24 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
       setDeviceBrandDropdownLocked(true);
       setShowDeviceBrandDropdown(false);
       setShowNewDeviceBrandModal(false);
-      showSuccess("New device brand added successfully");
+      showSuccess("Yeni cihaz markası başarıyla eklendi");
 
       // Reset the form
       setNewDeviceBrand({ device_brand_name: "" });
     } catch (err) {
-      showError("Failed to create device brand: " + (err.message || "Unknown error"));
-      console.error(err);
+      showError("Cihaz markası oluşturulurken hata oluştu");
+      handleApiError(err);
     }
   };
-
-  // Hata gösterme durumunun kontrolü
-  const showError2 = showValidation && !selectedDeviceBrand?.device_brand_id;
 
   return (
     <>
       <div className="form-floating form-floating-outline mb-4 position-relative" ref={deviceBrandInputRef}>
-        <input type="text" className={`form-control ${showError2 ? "is-invalid" : ""}`} id="device-brand-search" placeholder="Search device brand..." value={deviceBrandSearchTerm} onChange={handleDeviceBrandSearchChange} onFocus={handleFocus} autoComplete="off" disabled={loading} />
+        <input type="text" className={`form-control ${validationError ? "is-invalid" : ""}`} id="device-brand-search" placeholder="Marka ara..." value={deviceBrandSearchTerm} onChange={handleDeviceBrandSearchChange} onFocus={handleFocus} autoComplete="off" disabled={loading} />
         <label htmlFor="device-brand-search">
-          Device Brand <span className="text-danger">*</span>
+          Cihaz Markası <span className="text-danger">*</span>
         </label>
-        {showError2 && <div className="invalid-feedback d-block">Device brand selection is required</div>}
+        {validationError && <div className="invalid-feedback d-block">Cihaz markası seçimi zorunludur</div>}
 
         {/* Show fetch error if any */}
         {fetchError && <div className="text-danger small mt-1">{fetchError}</div>}
@@ -204,7 +204,7 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
               ))
             ) : (
               <div className="dropdown-item-text text-center py-2">
-                <div>No matching device brands found</div>
+                <div>Eşleşen marka bulunamadı</div>
                 <button
                   className="btn btn-sm btn-primary mt-2"
                   onClick={(e) => {
@@ -219,7 +219,7 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
                     }
                   }}
                 >
-                  <i className="ri-add-line me-1"></i> Add New Device Brand
+                  <i className="ri-add-line me-1"></i> Yeni Marka Ekle
                 </button>
               </div>
             )}
@@ -240,24 +240,24 @@ function DeviceBrandSelector({ selectedDeviceBrand, onDeviceBrandSelect, showVal
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title" id="newDeviceBrandModalLabel">
-                  Add New Device Brand
+                  Yeni Cihaz Markası Ekle
                 </h5>
                 <button type="button" className="btn-close" onClick={() => setShowNewDeviceBrandModal(false)} aria-label="Close"></button>
               </div>
               <div className="modal-body">
                 <div className="mb-3">
                   <label htmlFor="device_brand_name" className="form-label">
-                    Device Brand Name
+                    Marka Adı
                   </label>
                   <input type="text" className="form-control" id="device_brand_name" name="device_brand_name" value={newDeviceBrand.device_brand_name} onChange={handleNewDeviceBrandChange} autoFocus />
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline-secondary" onClick={() => setShowNewDeviceBrandModal(false)}>
-                  Cancel
+                  İptal
                 </button>
                 <button type="button" className="btn btn-primary" onClick={handleSaveNewDeviceBrand}>
-                  Save Device Brand
+                  Markayı Kaydet
                 </button>
               </div>
             </div>

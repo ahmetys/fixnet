@@ -6,8 +6,6 @@ export const getSettings = async () => {
 };
 
 export const updateSettings = async (settings) => {
-  console.log("updateSettings");
-  console.log(settings);
   const [result] = await pool.query("UPDATE store SET ? WHERE store_id = ?", [settings, settings.store_id]);
-  return result[0];
+  return result.affectedRows;
 };

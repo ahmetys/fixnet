@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import * as deviceTypeService from "../../services/deviceType.service";
-import { useNotification } from "../../hooks/useNotification";
+import * as deviceTypeService from "../../services/deviceManagement.service";
+import { useNotification } from "../../contexts/NotificationContext";
 
 function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDeviceBrand, showValidation = false }) {
   const [deviceTypes, setDeviceTypes] = useState([]);
@@ -18,7 +18,10 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
   });
 
   const deviceTypeInputRef = useRef(null);
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, handleApiError } = useNotification();
+
+  // Hata gösterme durumunun kontrolü
+  const validationError = showValidation && !selectedDeviceType?.device_type_id;
 
   // Brand değiştiğinde veya silindiğinde search term'i temizle
   useEffect(() => {
@@ -72,8 +75,8 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
 
         setFetchError(null);
       } catch (err) {
-        setFetchError("Failed to load device types");
-        console.error(err);
+        setFetchError("Cihaz türleri yüklenirken hata oluştu");
+        handleApiError(err);
       } finally {
         setLoading(false);
       }
@@ -88,7 +91,7 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
         device_brand_id: selectedDeviceBrand.device_brand_id,
       }));
     }
-  }, [selectedDeviceBrand]);
+  }, [selectedDeviceBrand, selectedDeviceType, onDeviceTypeSelect, handleApiError]);
 
   // Filter device types based on search term
   const filteredDeviceTypes = deviceTypeSearchTerm.length >= 1 ? deviceTypes.filter((type) => type.device_type_name.toLowerCase().includes(deviceTypeSearchTerm.toLowerCase())) : deviceTypes;
@@ -119,7 +122,7 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
   const handleFocus = () => {
     // Eğer marka seçilmemişse, dropdown'ı açma
     if (!selectedDeviceBrand?.device_brand_id) {
-      showError("Please select a device brand first");
+      showError("Lütfen önce bir cihaz markası seçin");
       return;
     }
 
@@ -157,12 +160,12 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
 
   const handleSaveNewDeviceType = async () => {
     if (!newDeviceType.device_type_name.trim()) {
-      showError("Device type name cannot be empty");
+      showError("Cihaz türü adı boş olamaz");
       return;
     }
 
     if (!selectedDeviceBrand?.device_brand_id) {
-      showError("Please select a device brand first");
+      showError("Lütfen önce bir cihaz markası seçin");
       return;
     }
 
@@ -171,7 +174,7 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
       const existing = deviceTypes.find((type) => type.device_type_name.toLowerCase() === newDeviceType.device_type_name.toLowerCase());
 
       if (existing) {
-        showError("A device type with this name already exists");
+        showError("Bu isimde bir cihaz türü zaten mevcut");
         return;
       }
 
@@ -201,7 +204,7 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
       setDeviceTypeDropdownLocked(true);
       setShowDeviceTypeDropdown(false);
       setShowNewDeviceTypeModal(false);
-      showSuccess("New device type added successfully");
+      showSuccess("Yeni cihaz türü başarıyla eklendi");
 
       // Reset the form
       setNewDeviceType({
@@ -209,22 +212,19 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
         device_brand_id: selectedDeviceBrand.device_brand_id,
       });
     } catch (err) {
-      showError("Failed to create device type: " + (err.message || "Unknown error"));
-      console.error(err);
+      showError("Cihaz türü oluşturulurken hata oluştu");
+      handleApiError(err);
     }
   };
-
-  // Hata gösterme durumunun kontrolü
-  const showError2 = showValidation && !selectedDeviceType?.device_type_id;
 
   return (
     <>
       <div className="form-floating form-floating-outline mb-4 position-relative" ref={deviceTypeInputRef}>
         <input
           type="text"
-          className={`form-control ${showError2 ? "is-invalid" : ""}`}
+          className={`form-control ${validationError ? "is-invalid" : ""}`}
           id="device-type-search"
-          placeholder="Search device type..."
+          placeholder="Cihaz türü ara..."
           value={deviceTypeSearchTerm}
           onChange={handleDeviceTypeSearchChange}
           onFocus={handleFocus}
@@ -232,10 +232,10 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
           disabled={loading || !selectedDeviceBrand?.device_brand_id}
         />
         <label htmlFor="device-type-search">
-          Device Type <span className="text-danger">*</span>
+          Cihaz Türü <span className="text-danger">*</span>
         </label>
-        {showError2 && <div className="invalid-feedback d-block">Device type selection is required</div>}
-        {!selectedDeviceBrand?.device_brand_id && <div className="text-muted small mt-1">Please select a device brand first</div>}
+        {validationError && <div className="invalid-feedback d-block">Cihaz türü seçimi zorunludur</div>}
+        {!selectedDeviceBrand?.device_brand_id && <div className="text-muted small mt-1">Lütfen önce bir cihaz markası seçin</div>}
 
         {/* Show fetch error if any */}
         {fetchError && <div className="text-danger small mt-1">{fetchError}</div>}
@@ -278,7 +278,7 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
               ))
             ) : (
               <div className="dropdown-item-text text-center py-2">
-                <div>No matching device types found for {selectedDeviceBrand.device_brand_name}</div>
+                <div>{selectedDeviceBrand.device_brand_name} için eşleşen cihaz türü bulunamadı</div>
                 <button
                   className="btn btn-sm btn-primary mt-2"
                   onClick={(e) => {
@@ -294,7 +294,7 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
                     }
                   }}
                 >
-                  <i className="ri-add-line me-1"></i> Add New Device Type
+                  <i className="ri-add-line me-1"></i> Yeni Cihaz Türü Ekle
                 </button>
               </div>
             )}
@@ -315,28 +315,28 @@ function DeviceTypeSelector({ selectedDeviceType, onDeviceTypeSelect, selectedDe
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title" id="newDeviceTypeModalLabel">
-                  Add New Device Type for {selectedDeviceBrand?.device_brand_name}
+                  {selectedDeviceBrand?.device_brand_name} için Yeni Cihaz Türü Ekle
                 </h5>
                 <button type="button" className="btn-close" onClick={() => setShowNewDeviceTypeModal(false)} aria-label="Close"></button>
               </div>
               <div className="modal-body">
                 <div className="mb-3">
                   <label htmlFor="device_type_name" className="form-label">
-                    Device Type Name
+                    Cihaz Türü Adı
                   </label>
                   <input type="text" className="form-control" id="device_type_name" name="device_type_name" value={newDeviceType.device_type_name} onChange={handleNewDeviceTypeChange} autoFocus />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label">Brand</label>
+                  <label className="form-label">Marka</label>
                   <input type="text" className="form-control" value={selectedDeviceBrand?.device_brand_name || ""} disabled />
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline-secondary" onClick={() => setShowNewDeviceTypeModal(false)}>
-                  Cancel
+                  İptal
                 </button>
                 <button type="button" className="btn btn-primary" onClick={handleSaveNewDeviceType}>
-                  Save Device Type
+                  Cihaz Türünü Kaydet
                 </button>
               </div>
             </div>

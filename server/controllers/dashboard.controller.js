@@ -1,4 +1,4 @@
-import * as DashboardService from "../models/dashboard/DashboardService.js";
+import * as DashboardService from "../models/DashboardService.js";
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -21,7 +21,6 @@ export const getDashboardStats = async (req, res) => {
       performanceData,
     });
   } catch (error) {
-    console.error("Error in getDashboardStats controller:", error);
     res.status(500).json({
       message: "Dashboard istatistikleri alınırken hata oluştu",
       error: error.message,

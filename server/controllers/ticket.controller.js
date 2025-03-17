@@ -48,8 +48,6 @@ export const addTicketOperation = async (req, res) => {
 };
 
 export const updateTicketOperation = async (req, res) => {
-  console.log("updateTicketOperation");
-  console.log(req.body);
   const { operationId } = req.params;
   const { ticket_operation_price } = req.body;
   const ticketOperation = await Ticket.updateTicketOperation(operationId, ticket_operation_price);

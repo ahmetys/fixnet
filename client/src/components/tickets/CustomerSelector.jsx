@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import * as customerService from "../../services/customer.service";
-import { useNotification } from "../../hooks/useNotification";
+import { useNotification } from "../../contexts/NotificationContext";
 
 function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation = false }) {
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
@@ -8,9 +8,9 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [customerDropdownLocked, setCustomerDropdownLocked] = useState(false);
   const customerInputRef = useRef(null);
-  const { showError } = useNotification();
+  const { showError, handleApiError } = useNotification();
 
-  // New Customer Modal ile ilgili state'ler
+  // Yeni Müşteri Modalı ile ilgili state'ler
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [newCustomer, setNewCustomer] = useState({
@@ -20,13 +20,13 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
     customer_phone: "",
     customer_email: "",
     customer_address: "",
-    customer_notification: "",
+    customer_notification: "call", // Varsayılan olarak telefon seçilsin
   });
 
   // Hata gösterme durumunun kontrolü
-  const showError2 = showValidation && !selectedCustomer?.customer_id;
+  const validationError = showValidation && !selectedCustomer?.customer_id;
 
-  // Customer dropdown kontrolü
+  // Müşteri listesi için arama işlemi
   useEffect(() => {
     const searchCustomers = async () => {
       // Dropdown kilitliyse ve arama terimi müşteri adıyla aynıysa, dropdown'ı gösterme
@@ -40,7 +40,7 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
           setMatchingCustomers(customers);
           setShowCustomerDropdown(true);
         } catch (err) {
-          console.error("Error searching customers:", err);
+          handleApiError(err);
         }
       } else {
         setMatchingCustomers([]);
@@ -49,9 +49,9 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
     };
 
     searchCustomers();
-  }, [customerSearchTerm, customerDropdownLocked, selectedCustomer?.customer_name]);
+  }, [customerSearchTerm, customerDropdownLocked, selectedCustomer?.customer_name, handleApiError]);
 
-  // Close dropdowns when clicking outside
+  // Dışarı tıklandığında dropdown'ları kapat
   useEffect(() => {
     function handleClickOutside(event) {
       if (customerInputRef.current && !customerInputRef.current.contains(event.target)) {
@@ -137,26 +137,27 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
         customer_phone: "",
         customer_email: "",
         customer_address: "",
-        customer_notification: "",
+        customer_notification: "call",
       });
     } catch (err) {
-      showError("Müşteri kaydedilirken bir hata oluştu: " + (err.message || "Bilinmeyen hata"));
+      showError("Müşteri kaydedilirken bir hata oluştu");
+      handleApiError(err);
     }
   };
 
   return (
     <>
       <div className="form-floating form-floating-outline position-relative" ref={customerInputRef}>
-        <input type="text" className={`form-control ${showError2 ? "is-invalid" : ""}`} id="customer-search" placeholder="Search customer by name, phone or email..." value={customerSearchTerm} onChange={handleCustomerSearchChange} autoComplete="off" />
+        <input type="text" className={`form-control ${validationError ? "is-invalid" : ""}`} id="customer-search" placeholder="İsim, telefon veya email ile müşteri ara..." value={customerSearchTerm} onChange={handleCustomerSearchChange} autoComplete="off" />
         <label htmlFor="customer-search">
-          Customer <span className="text-danger">*</span>
+          Müşteri <span className="text-danger">*</span>
         </label>
-        {/* Add Button (absolute positioned) */}
+        {/* Ekle Butonu (Mutlak Konumlandırılmış) */}
         <button
           className="btn btn-primary position-absolute"
           type="button"
           onClick={() => setShowNewCustomerModal(true)}
-          title="Add New Customer"
+          title="Yeni Müşteri Ekle"
           style={{
             right: "0",
             top: "0",
@@ -169,7 +170,7 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
           <i className="ri-add-large-fill"></i>
         </button>
 
-        {/* Customer dropdown */}
+        {/* Müşteri Dropdown Menüsü */}
         {showCustomerDropdown && (
           <div
             className="dropdown-menu d-block position-absolute w-100 overflow-auto"
@@ -205,7 +206,7 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
               ))
             ) : (
               <div className="dropdown-item-text text-center py-2">
-                <div>No matching customers found</div>
+                <div>Eşleşen müşteri bulunamadı</div>
                 <button
                   className="btn btn-sm btn-primary mt-2"
                   onClick={(e) => {
@@ -220,16 +221,16 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
                     }
                   }}
                 >
-                  <i className="ri-add-line me-1"></i> Add New Customer
+                  <i className="ri-add-line me-1"></i> Yeni Müşteri Ekle
                 </button>
               </div>
             )}
           </div>
         )}
       </div>
-      {showError2 && <div className="invalid-feedback d-block">Customer selection is required</div>}
+      {validationError && <div className="invalid-feedback d-block">Müşteri seçimi zorunludur</div>}
 
-      {/* New Customer Modal */}
+      {/* Yeni Müşteri Modalı */}
       {showNewCustomerModal && (
         <div
           className={`modal fade ${showNewCustomerModal ? "show" : ""}`}
@@ -243,7 +244,7 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title" id="newCustomerModalLabel">
-                  Add New Customer
+                  Yeni Müşteri Ekle
                 </h5>
                 <button type="button" className="btn-close" onClick={() => setShowNewCustomerModal(false)} aria-label="Close"></button>
               </div>
@@ -251,23 +252,23 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
                 <div className="row mb-3">
                   <div className="col-md-6">
                     <label htmlFor="customer_name" className="form-label">
-                      Customer Name
+                      Müşteri Adı
                     </label>
                     <input type="text" className={`form-control ${formErrors.customer_name ? "is-invalid" : ""}`} id="customer_name" name="customer_name" value={newCustomer.customer_name} onChange={handleNewCustomerChange} autoFocus />
                     {formErrors.customer_name && <div className="invalid-feedback">{formErrors.customer_name}</div>}
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label d-block">Customer Type</label>
+                    <label className="form-label d-block">Müşteri Türü</label>
                     <div className="form-check form-check-inline mt-2">
                       <input className="form-check-input" type="radio" name="customer_type" id="customerTypeIndividual" value="individual" checked={newCustomer.customer_type === "individual"} onChange={handleNewCustomerChange} />
                       <label className="form-check-label" htmlFor="customerTypeIndividual">
-                        Individual
+                        Bireysel
                       </label>
                     </div>
                     <div className="form-check form-check-inline">
                       <input className="form-check-input" type="radio" name="customer_type" id="customerTypeCommercial" value="commercial" checked={newCustomer.customer_type === "commercial"} onChange={handleNewCustomerChange} />
                       <label className="form-check-label" htmlFor="customerTypeCommercial">
-                        Commercial
+                        Ticari
                       </label>
                     </div>
                   </div>
@@ -276,7 +277,7 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
                 {newCustomer.customer_type === "commercial" && (
                   <div className="mb-3">
                     <label htmlFor="customer_company" className="form-label">
-                      Company Name
+                      Firma Adı
                     </label>
                     <input type="text" className={`form-control ${formErrors.customer_company ? "is-invalid" : ""}`} id="customer_company" name="customer_company" value={newCustomer.customer_company} onChange={handleNewCustomerChange} />
                     {formErrors.customer_company && <div className="invalid-feedback">{formErrors.customer_company}</div>}
@@ -286,14 +287,14 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
                 <div className="row mb-3">
                   <div className="col-md-6">
                     <label htmlFor="customer_phone" className="form-label">
-                      Phone Number
+                      Telefon Numarası
                     </label>
                     <input type="text" className={`form-control ${formErrors.customer_phone ? "is-invalid" : ""}`} id="customer_phone" name="customer_phone" value={newCustomer.customer_phone} onChange={handleNewCustomerChange} />
                     {formErrors.customer_phone && <div className="invalid-feedback">{formErrors.customer_phone}</div>}
                   </div>
                   <div className="col-md-6">
                     <label htmlFor="customer_email" className="form-label">
-                      Email
+                      Email Adresi
                     </label>
                     <input type="email" className={`form-control ${formErrors.customer_email ? "is-invalid" : ""}`} id="customer_email" name="customer_email" value={newCustomer.customer_email} onChange={handleNewCustomerChange} />
                     {formErrors.customer_email && <div className="invalid-feedback">{formErrors.customer_email}</div>}
@@ -302,13 +303,13 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
 
                 <div className="mb-3">
                   <label htmlFor="customer_address" className="form-label">
-                    Address
+                    Adres
                   </label>
                   <textarea className="form-control" id="customer_address" name="customer_address" rows="3" value={newCustomer.customer_address} onChange={handleNewCustomerChange}></textarea>
                 </div>
 
                 <div className="mb-3">
-                  <label className="form-label d-block">Preferred Notification Method</label>
+                  <label className="form-label d-block">Tercih Edilen Bildirim Yöntemi</label>
                   <div className="form-check form-check-inline mt-2">
                     <input className="form-check-input" type="radio" name="customer_notification" id="notificationSMS" value="sms" checked={newCustomer.customer_notification === "sms"} onChange={handleNewCustomerChange} />
                     <label className="form-check-label" htmlFor="notificationSMS">
@@ -318,7 +319,7 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
                   <div className="form-check form-check-inline">
                     <input className="form-check-input" type="radio" name="customer_notification" id="notificationCall" value="call" checked={newCustomer.customer_notification === "call"} onChange={handleNewCustomerChange} />
                     <label className="form-check-label" htmlFor="notificationCall">
-                      Call
+                      Telefon
                     </label>
                   </div>
                   <div className="form-check form-check-inline">
@@ -336,17 +337,17 @@ function CustomerSelector({ selectedCustomer, onCustomerSelect, showValidation =
                   <div className="form-check form-check-inline">
                     <input className="form-check-input" type="radio" name="customer_notification" id="notificationNone" value="" checked={newCustomer.customer_notification === ""} onChange={handleNewCustomerChange} />
                     <label className="form-check-label" htmlFor="notificationNone">
-                      None
+                      Hiçbiri
                     </label>
                   </div>
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline-secondary" onClick={() => setShowNewCustomerModal(false)}>
-                  Cancel
+                  İptal
                 </button>
                 <button type="button" className="btn btn-primary" onClick={handleSaveNewCustomer}>
-                  Save Customer
+                  Müşteriyi Kaydet
                 </button>
               </div>
             </div>

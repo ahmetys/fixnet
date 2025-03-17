@@ -1,40 +1,37 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import * as ticketService from "../services/ticket.service";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useNotification } from "../hooks/useNotification";
+import { useNotification } from "../contexts/NotificationContext";
 import { Link } from "react-router-dom";
+
 const Tickets = () => {
   const location = useLocation();
-  const navigate = useNavigate(); // Added navigate hook for row click navigation
+  const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const { showSuccess, showError } = useNotification();
   const [ticketStatus, setTicketStatus] = useState("");
-  const [ticketCounts, setTicketCounts] = useState({});
+  const { showSuccess, handleApiError } = useNotification();
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  const [formErrors, setFormErrors] = useState({});
-
   // Load data
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const data = await ticketService.getAllTickets();
-      console.log("Fetched tickets:", data);
       setTickets(data);
       setError(null);
     } catch (err) {
-      setError("Failed to load tickets");
-      console.error(err);
-      showError("Failed to load tickets. Please try again later.");
+      setError("Servis fişleri yüklenirken bir hata oluştu.");
+      handleApiError(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [handleApiError]);
 
   useEffect(() => {
     fetchData();
@@ -44,7 +41,7 @@ const Tickets = () => {
       showSuccess(location.state.message);
       window.history.replaceState({}, document.title);
     }
-  }, [location]);
+  }, [location, fetchData, showSuccess]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
@@ -91,46 +88,8 @@ const Tickets = () => {
   const currentItems = filteredTickets.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
 
-  const handleTicketStatusChange = (e) => {
-    setTicketStatus(e.target.value);
-    setCurrentPage(1);
-  };
-
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
-  };
-
-  // Ticket statuslarını formatlama ve renklerini belirleme fonksiyonu
-  const formatStatusText = (status) => {
-    if (!status) return "Unknown";
-
-    // Özel durumlar
-    if (status === "waiting_parts") return "Waiting Parts";
-    if (status === "not_repaired") return "Not Repaired";
-
-    // Genel durum: alt çizgileri boşluklarla değiştir ve her kelimenin ilk harfini büyük yap
-    return status
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
-
-  // Duruma göre renk seçme fonksiyonu
-  const getStatusBadgeColor = (status) => {
-    switch (status) {
-      case "pending":
-        return "warning";
-      case "waiting_parts":
-        return "info";
-      case "repaired":
-        return "success";
-      case "delivered":
-        return "primary";
-      case "not_repaired":
-        return "danger";
-      default:
-        return "secondary";
-    }
   };
 
   // Format date for display (show only day, month, year)
@@ -168,15 +127,15 @@ const Tickets = () => {
 
   // Filtre seçenekleri için status options
   const statusFilterOptions = [
-    { value: "", label: "All Statuses" },
-    { value: "pending", label: "Pending" },
-    { value: "waiting_parts", label: "Waiting Parts" },
-    { value: "repaired", label: "Repaired" },
-    { value: "not_repaired", label: "Not Repaired" },
-    { value: "delivered", label: "Delivered" },
+    { value: "", label: "Tüm Durumlar" },
+    { value: "pending", label: "Beklemede" },
+    { value: "waiting_parts", label: "Parça Bekleniyor" },
+    { value: "repaired", label: "Onarıldı" },
+    { value: "not_repaired", label: "Onarılamadı" },
+    { value: "delivered", label: "Teslim Edildi" },
   ];
 
-  // Status badge'i gösterme fonksiyonunu güncelleyelim
+  // Status badge'i gösterme fonksiyonu
   const renderStatusBadge = (ticket) => {
     let statusClass = "";
     let statusText = "";
@@ -198,16 +157,20 @@ const Tickets = () => {
         statusClass = "bg-danger";
         statusText = "Tamir Edilemedi";
         break;
+      case "delivered":
+        statusClass = "bg-info";
+        statusText = "Teslim Edildi";
+        break;
       default:
         statusClass = "bg-secondary";
         statusText = "Belirsiz";
     }
 
     return (
-      <>
+      <div className="d-flex gap-1 align-items-center">
         <span className={`badge ${statusClass} me-1`}>{statusText}</span>
         {ticket.ticket_delivered ? <span className="badge bg-primary">Teslim Edildi</span> : null}
-      </>
+      </div>
     );
   };
 
@@ -216,10 +179,10 @@ const Tickets = () => {
       <div className="card bg-transparent shadow-none border-0 my-4">
         <div className="card-body p-0 d-flex justify-content-between align-items-center">
           <div>
-            <h4 className="fw-bold py-3 mb-4"> Service Tickets</h4>
+            <h4 className="fw-bold py-3 mb-4">Servis Fişleri</h4>
           </div>
           <Link to="/tickets/add" className="btn btn-primary">
-            Add Ticket
+            Servis Fişi Ekle
           </Link>
         </div>
       </div>
@@ -230,8 +193,8 @@ const Tickets = () => {
           <div className="row g-3">
             <div className="col-md-9">
               <div className="form-floating form-floating-outline">
-                <input type="text" className="form-control" id="searchInput" placeholder="Search by ID, customer name, device model..." value={searchTerm} onChange={handleSearch} />
-                <label htmlFor="searchInput">Search</label>
+                <input type="text" className="form-control" id="searchInput" placeholder="ID, müşteri adı, cihaz modeli ile arama..." value={searchTerm} onChange={handleSearch} />
+                <label htmlFor="searchInput">Arama</label>
               </div>
             </div>
             <div className="col-md-3 mb-3">
@@ -250,7 +213,7 @@ const Tickets = () => {
             <div className="row mt-2">
               <div className="col-12 text-end">
                 <button className="btn btn-outline-secondary btn-sm" onClick={clearSearchField}>
-                  <i className="bx bx-x me-1"></i>Clear Search
+                  <i className="bx bx-x me-1"></i>Aramayı Temizle
                 </button>
               </div>
             </div>
@@ -267,12 +230,8 @@ const Tickets = () => {
 
       <div className="card">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="card-title mb-0">Tickets</h5>
-          <div className="card-tools">
-            <button type="button" className="btn btn-sm btn-outline-primary">
-              <i className="bx bx-refresh me-1"></i> Refresh
-            </button>
-          </div>
+          <h5 className="card-title mb-0">Servis Fişleri</h5>
+          <div className="card-tools"></div>
         </div>
         <div className="card-datatable table-responsive">
           <div className="table-responsive text-nowrap">
@@ -280,31 +239,31 @@ const Tickets = () => {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Customer</th>
-                  <th>Device</th>
-                  <th>Status</th>
-                  <th>Created At</th>
-                  <th>Notes</th>
+                  <th>Müşteri</th>
+                  <th>Cihaz</th>
+                  <th>Durum</th>
+                  <th>Oluşturulma</th>
+                  <th>Notlar</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="text-center">
+                    <td colSpan="6" className="text-center">
                       <div className="spinner-border text-primary" role="status">
-                        <span className="visually-hidden">Loading...</span>
+                        <span className="visually-hidden">Yükleniyor...</span>
                       </div>
                     </td>
                   </tr>
                 ) : filteredTickets.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="text-center py-4">
+                    <td colSpan="6" className="text-center py-4">
                       <div className="p-2">
                         <i className="ri-information-line text-primary ri-2x mb-2"></i>
-                        <p>No tickets found with the current filters.</p>
+                        <p>Mevcut filtrelerle servis fişi bulunamadı.</p>
                         {ticketStatus && (
                           <button className="btn btn-sm btn-outline-primary" onClick={() => setTicketStatus("")}>
-                            Clear Filters
+                            Filtreleri Temizle
                           </button>
                         )}
                       </div>
@@ -315,10 +274,10 @@ const Tickets = () => {
                     <tr key={ticket.ticket_id} style={{ cursor: "pointer" }} onClick={() => handleRowClick(ticket.ticket_id)}>
                       <td>#{ticket.ticket_id}</td>
                       <td>{ticket.customer_name}</td>
-                      <td>{ticket.device_model_name}</td>
+                      <td>{ticket.device_model_name || ticket.device_name || "Belirtilmemiş"}</td>
                       <td>{renderStatusBadge(ticket)}</td>
                       <td>{formatDate(ticket.created_at)}</td>
-                      <td>{ticket.ticket_notes?.length > 60 ? ticket.ticket_notes.slice(0, 60) + "..." : ticket.ticket_notes}</td>
+                      <td>{ticket.ticket_notes?.length > 60 ? ticket.ticket_notes.slice(0, 60) + "..." : ticket.ticket_notes || "Belirtilmemiş"}</td>
                     </tr>
                   ))
                 )}
@@ -347,7 +306,7 @@ const Tickets = () => {
                 </ul>
               </nav>
               <div className="text-center text-muted mt-1">
-                Total {filteredTickets.length} records, {totalPages} pages
+                Toplam {filteredTickets.length} kayıt, {totalPages} sayfa
               </div>
             </div>
           )}

@@ -11,7 +11,6 @@ export const getDeviceBrandById = async (id) => {
 };
 
 export const createDeviceBrand = async (deviceBrand) => {
-  console.log(deviceBrand);
   const [result] = await pool.query("INSERT INTO device_brands (device_brand_name) VALUES (?)", [deviceBrand.device_brand_name]);
   return result.insertId;
 };

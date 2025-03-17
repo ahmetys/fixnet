@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Container, Row, Col, Nav, Tab } from "react-bootstrap";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from "chart.js";
 import "react-datepicker/dist/react-datepicker.css";
-import PageHeader from "../components/PageHeader";
 import CustomerReports from "../components/reports/CustomerReports";
 import DeviceReports from "../components/reports/DeviceReports";
 import TicketReports from "../components/reports/TicketReports";
@@ -21,8 +20,15 @@ const Reports = () => {
   };
 
   return (
-    <Container fluid className="p-4">
-      <PageHeader title="Raporlar" subtitle="Servis işletmenizin performansını detaylı raporlarla takip edin" icon="chart-bar" />
+    <Container fluid>
+      {/* Header and Buttons */}
+      <div className="card bg-transparent shadow-none border-0 my-4 py-4">
+        <div className="card-body p-0 d-flex justify-content-between align-items-center">
+          <div>
+            <h4 className="fw-bold py-3 mb-4"> Reports</h4>
+          </div>
+        </div>
+      </div>
 
       <Tab.Container id="report-tabs" activeKey={activeTab} onSelect={handleTabChange}>
         <Row className="mb-4">

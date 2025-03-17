@@ -1,16 +1,8 @@
-import React, { useEffect } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
 
-const Sidebar = () => {
+const Sidebar = ({ toggleSidebar }) => {
   const location = useLocation();
-  const { user, logout } = useAuth();
-
-  // Debug logging for admin status
-  useEffect(() => {
-    console.log("Sidebar - Current user:", user);
-  }, [user]);
-
   const isActive = (path) => {
     if (path === "/") {
       return location.pathname === path ? "active" : "";
@@ -35,59 +27,88 @@ const Sidebar = () => {
       <div className="menu-inner-shadow"></div>
 
       <ul className="menu-inner py-1">
-        {/* Dashboard */}
         <li className={`menu-item ${isActive("/")}`}>
-          <Link to="/" className="menu-link">
+          <Link
+            to="/"
+            className="menu-link"
+            onClick={() => {
+              toggleSidebar();
+            }}
+          >
             <i className="menu-icon ri-dashboard-line"></i>
-            <div data-i18n="Dashboard">Dashboard</div>
+            <div data-i18n="Dashboard">Anasayfa</div>
           </Link>
         </li>
-
-        {/* Tickets */}
         <li className={`menu-item ${isActive("/tickets")}`}>
-          <Link to="/tickets" className="menu-link">
+          <Link
+            to="/tickets"
+            className="menu-link"
+            onClick={() => {
+              toggleSidebar();
+            }}
+          >
             <i className="menu-icon ri-ticket-2-line"></i>
-            <div data-i18n="Tickets">Tickets</div>
+            <div data-i18n="Tickets">Servis Fişleri</div>
           </Link>
         </li>
-
-        {/* Customers */}
         <li className={`menu-item ${isActive("/customers")}`}>
-          <Link to="/customers" className="menu-link">
+          <Link
+            to="/customers"
+            className="menu-link"
+            onClick={() => {
+              toggleSidebar();
+            }}
+          >
             <i className="menu-icon ri-user-line"></i>
-            <div data-i18n="Customers">Customers</div>
+            <div data-i18n="Customers">Müşteriler</div>
           </Link>
         </li>
-
-        {/* Device Management */}
         <li className={`menu-item ${isActive("/deviceManagement")}`}>
-          <Link to="/deviceManagement" className="menu-link">
+          <Link
+            to="/deviceManagement"
+            className="menu-link"
+            onClick={() => {
+              toggleSidebar();
+            }}
+          >
             <i className="menu-icon ri-smartphone-line"></i>
-            <div data-i18n="Device Management">Device Management</div>
+            <div data-i18n="Device Management">Cihaz Yönetimi</div>
           </Link>
         </li>
-
-        {/* Operations */}
         <li className={`menu-item ${isActive("/operations")}`}>
-          <Link to="/operations" className="menu-link">
+          <Link
+            to="/operations"
+            className="menu-link"
+            onClick={() => {
+              toggleSidebar();
+            }}
+          >
             <i className="menu-icon ri-tools-line"></i>
-            <div data-i18n="Operations">Operations</div>
+            <div data-i18n="Operations">Servis İşlemleri</div>
           </Link>
         </li>
-
-        {/* Reports */}
-        <li className={`menu-item ${isActive("/reports")}`}>
-          <Link to="/reports" className="menu-link">
+        {/* <li className={`menu-item ${isActive("/reports")}`}>
+          <Link
+            to="/reports"
+            className="menu-link"
+            onClick={() => {
+              toggleSidebar();
+            }}
+          >
             <i className="menu-icon ri-line-chart-line"></i>
-            <div data-i18n="Reports">Reports</div>
+            <div data-i18n="Reports">Raporlar</div>
           </Link>
-        </li>
-
-        {/* Settings */}
+        </li> */}
         <li className={`menu-item ${isActive("/settings")}`}>
-          <Link to="/settings" className="menu-link">
+          <Link
+            to="/settings"
+            className="menu-link"
+            onClick={() => {
+              toggleSidebar();
+            }}
+          >
             <i className="menu-icon ri-settings-line"></i>
-            <div data-i18n="Settings">Settings</div>
+            <div data-i18n="Settings">Ayarlar</div>
           </Link>
         </li>
       </ul>

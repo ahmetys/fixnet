@@ -16,7 +16,6 @@ export const createTicketLog = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Error creating ticket log:", error);
     res.status(500).json({
       success: false,
       message: "Failed to create ticket log",
@@ -30,7 +29,6 @@ export const getTicketLogs = async (req, res) => {
     const logs = await TicketLog.getTicketLogs(ticketId);
     res.status(200).json(logs);
   } catch (error) {
-    console.error("Error fetching ticket logs:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch ticket logs",

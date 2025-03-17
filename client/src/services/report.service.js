@@ -2,8 +2,13 @@ import api from "./api";
 
 // Customer statistics
 export const getCustomerStats = async () => {
-  const response = await api.get("/reports/customers");
-  return response.data;
+  try {
+    const response = await api.get("/reports/customers");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching customer stats:", error);
+    throw error;
+  }
 };
 
 // Device statistics

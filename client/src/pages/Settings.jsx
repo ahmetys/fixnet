@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useNotification } from "../hooks/useNotification.js";
-
+import { useNotification } from "../contexts/NotificationContext";
 import { getSettings, updateSettings } from "../services/settings.service.js";
-
 const Settings = () => {
-  const { showSuccess } = useNotification();
+  const { showSuccess, handleApiError } = useNotification();
 
   const [storeData, setStoreData] = useState({
     store_name: "",
@@ -16,7 +14,6 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch store data from API
   useEffect(() => {
     const fetchStoreData = async () => {
       try {
@@ -24,8 +21,7 @@ const Settings = () => {
         const response = await getSettings();
         setStoreData(response);
       } catch (error) {
-        // Error is already handled by our API hook
-        console.log("Error fetching store data");
+        handleApiError(error);
       } finally {
         setLoading(false);
       }
@@ -34,7 +30,6 @@ const Settings = () => {
     fetchStoreData();
   }, []);
 
-  // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setStoreData({
@@ -43,17 +38,17 @@ const Settings = () => {
     });
   };
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
       setSaving(true);
-      await updateSettings(storeData);
-      showSuccess("Store information updated successfully!");
+      const updated = await updateSettings(storeData);
+      if (updated) {
+        showSuccess("Mağaza bilgileri başarıyla güncellendi!");
+      }
     } catch (error) {
-      // Error is already handled by our API hook
-      console.log("Error updating store data");
+      handleApiError(error);
     } finally {
       setSaving(false);
     }
@@ -61,26 +56,25 @@ const Settings = () => {
 
   return (
     <div className="container-xxl flex-grow-1 container-p-y">
-      <h4 className="fw-bold py-3 mb-4">Store Information</h4>
+      <h4 className="fw-bold py-3 mb-4">Mağaza Bilgileri</h4>
 
       <div className="row">
         <div className="col-md-12">
           <div className="card mb-4">
-            <h5 className="card-header">Store Details</h5>
+            <h5 className="card-header">Mağaza Bilgileri</h5>
 
-            {/* Card body with form */}
             <div className="card-body">
               {loading ? (
                 <div className="text-center p-5">
                   <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Loading...</span>
+                    <span className="visually-hidden">Yükleniyor...</span>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit}>
                   <div className="row mb-3">
                     <label className="col-sm-2 col-form-label" htmlFor="store_name">
-                      Store Name
+                      Mağaza Adı
                     </label>
                     <div className="col-sm-10">
                       <div className="input-group input-group-merge">
@@ -94,7 +88,7 @@ const Settings = () => {
 
                   <div className="row mb-3">
                     <label className="col-sm-2 col-form-label" htmlFor="store_phone">
-                      Phone Number
+                      Telefon Numarası
                     </label>
                     <div className="col-sm-10">
                       <div className="input-group input-group-merge">
@@ -122,7 +116,7 @@ const Settings = () => {
 
                   <div className="row mb-3">
                     <label className="col-sm-2 col-form-label" htmlFor="store_address">
-                      Address
+                      Adres
                     </label>
                     <div className="col-sm-10">
                       <div className="input-group input-group-merge">
@@ -140,24 +134,16 @@ const Settings = () => {
                         {saving ? (
                           <>
                             <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                            Saving...
+                            Kaydediliyor...
                           </>
                         ) : (
-                          "Save Changes"
+                          " Değişiklikleri Kaydet"
                         )}
                       </button>
                     </div>
                   </div>
                 </form>
               )}
-            </div>
-          </div>
-
-          {/* Additional Information Card */}
-          <div className="card">
-            <h5 className="card-header">Store Information</h5>
-            <div className="card-body">
-              <p className="mb-0">This information will be displayed on customer receipts and invoices. Make sure to provide accurate contact details so customers can reach your business.</p>
             </div>
           </div>
         </div>

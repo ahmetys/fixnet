@@ -1,14 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import * as deviceBrandService from "../services/deviceBrand.service.js";
-import * as deviceTypeService from "../services/deviceType.service.js";
-import * as deviceModelService from "../services/deviceModel.service.js";
-import { useNotification } from "../hooks/useNotification.js";
+import * as deviceManagementService from "../services/deviceManagement.service";
+import { useNotification } from "../contexts/NotificationContext";
 
 const DeviceManagement = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, handleApiError } = useNotification();
 
   // View state (which level to show: "brands", "types", or "models")
   const [currentView, setCurrentView] = useState("brands");
@@ -27,6 +25,9 @@ const DeviceManagement = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Form validation errors
+  const [nameError, setNameError] = useState("");
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -41,7 +42,6 @@ const DeviceManagement = () => {
   const [brandName, setBrandName] = useState("");
   const [typeName, setTypeName] = useState("");
   const [modelName, setModelName] = useState("");
-  const [nameError, setNameError] = useState("");
 
   // URL parameter handling and navigation
   useEffect(() => {
@@ -65,98 +65,107 @@ const DeviceManagement = () => {
       showSuccess(location.state.success);
       window.history.replaceState({}, document.title);
     }
-  }, [location]);
+  }, [location, showSuccess]);
 
   // Loading functions
-  const loadBrands = async () => {
+  const loadBrands = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await deviceBrandService.getAllDeviceBrands();
+      const data = await deviceManagementService.getAllDeviceBrands();
       setDeviceBrands(data);
-      setError(null);
 
       // Reset selections when viewing all brands
       setSelectedBrand(null);
       setSelectedType(null);
-    } catch (err) {
-      setError("Failed to load device brands");
-      console.error(err);
-      showError("Could not load brands. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadBrandDetails = async (brandId) => {
-    try {
-      setLoading(true);
-
-      // Get brand details
-      const brandData = await deviceBrandService.getDeviceBrandById(brandId);
-      setSelectedBrand(brandData);
-
-      // Get types for this brand
-      const typesData = await deviceTypeService.getAllDeviceTypesByBrand(brandId);
-      setDeviceTypes(typesData);
-
-      // Reset type selection
-      setSelectedType(null);
       setError(null);
     } catch (err) {
-      setError("Failed to load brand details");
-      console.error(err);
-      showError("Could not load brand details. Please try again later.");
+      setError("Cihaz markaları yüklenemedi");
+      handleApiError(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [handleApiError]);
 
-  const loadTypeDetails = async (typeId) => {
-    try {
-      setLoading(true);
+  const loadBrandDetails = useCallback(
+    async (brandId) => {
+      try {
+        setLoading(true);
 
-      // Get type details
-      const typeData = await deviceTypeService.getDeviceTypeById(typeId);
-      setSelectedType(typeData);
-
-      // Get brand for this type
-      if (typeData.device_brand_id) {
-        const brandData = await deviceBrandService.getDeviceBrandById(typeData.device_brand_id);
+        // Get brand details
+        const brandData = await deviceManagementService.getDeviceBrandById(brandId);
         setSelectedBrand(brandData);
+
+        // Get types for this brand
+        const typesData = await deviceManagementService.getAllDeviceTypesByBrand(brandId);
+        setDeviceTypes(typesData);
+
+        // Reset type selection
+        setSelectedType(null);
+        setError(null);
+      } catch (err) {
+        setError("Cihaz marka detayları yüklenemedi");
+        handleApiError(err);
+      } finally {
+        setLoading(false);
       }
+    },
+    [handleApiError]
+  );
 
-      // Get models for this type
-      const modelsData = await deviceModelService.getAllDeviceModelsByType(typeId);
-      setDeviceModels(modelsData);
+  const loadTypeDetails = useCallback(
+    async (typeId) => {
+      try {
+        setLoading(true);
 
-      setError(null);
-    } catch (err) {
-      setError("Failed to load type details");
-      console.error(err);
-      showError("Could not load type details. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
-  };
+        // Get type details
+        const typeData = await deviceManagementService.getDeviceTypeById(typeId);
+        setSelectedType(typeData);
+
+        // Get brand for this type
+        if (typeData.device_brand_id) {
+          const brandData = await deviceManagementService.getDeviceBrandById(typeData.device_brand_id);
+          setSelectedBrand(brandData);
+        }
+
+        // Get models for this type
+        const modelsData = await deviceManagementService.getAllDeviceModelsByType(typeId);
+        setDeviceModels(modelsData);
+
+        setError(null);
+      } catch (err) {
+        setError("Cihaz türü detayları yüklenemedi");
+        handleApiError(err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleApiError]
+  );
 
   // Navigation functions
-  const navigateToBrands = () => {
+  const navigateToBrands = useCallback(() => {
     setCurrentView("brands");
     navigate("/deviceManagement");
     loadBrands();
-  };
+  }, [navigate, loadBrands]);
 
-  const navigateToTypes = (brandId) => {
-    setCurrentView("types");
-    navigate(`/deviceManagement?brand=${brandId}`);
-    loadBrandDetails(brandId);
-  };
+  const navigateToTypes = useCallback(
+    (brandId) => {
+      setCurrentView("types");
+      navigate(`/deviceManagement?brand=${brandId}`);
+      loadBrandDetails(brandId);
+    },
+    [navigate, loadBrandDetails]
+  );
 
-  const navigateToModels = (typeId) => {
-    setCurrentView("models");
-    navigate(`/deviceManagement?type=${typeId}`);
-    loadTypeDetails(typeId);
-  };
+  const navigateToModels = useCallback(
+    (typeId) => {
+      setCurrentView("models");
+      navigate(`/deviceManagement?type=${typeId}`);
+      loadTypeDetails(typeId);
+    },
+    [navigate, loadTypeDetails]
+  );
 
   // Search and pagination
   const handleSearch = (e) => {
@@ -195,16 +204,17 @@ const DeviceManagement = () => {
     setBrandName("");
     setTypeName("");
     setModelName("");
-    setNameError("");
     setIsEditing(false);
     setCurrentItemId(null);
     setModalMode(mode);
+    setNameError("");
     setShowModal(true);
   };
 
   const openEditModal = (item, mode) => {
     setIsEditing(true);
     setModalMode(mode);
+    setNameError("");
 
     if (mode === "brand") {
       setBrandName(item.device_brand_name);
@@ -217,34 +227,28 @@ const DeviceManagement = () => {
       setCurrentItemId(item.device_model_id);
     }
 
-    setNameError("");
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
+    setNameError("");
   };
 
   // Form change handlers
   const handleBrandNameChange = (e) => {
     setBrandName(e.target.value);
-    if (e.target.value.trim()) {
-      setNameError("");
-    }
+    if (nameError) setNameError("");
   };
 
   const handleTypeNameChange = (e) => {
     setTypeName(e.target.value);
-    if (e.target.value.trim()) {
-      setNameError("");
-    }
+    if (nameError) setNameError("");
   };
 
   const handleModelNameChange = (e) => {
     setModelName(e.target.value);
-    if (e.target.value.trim()) {
-      setNameError("");
-    }
+    if (nameError) setNameError("");
   };
 
   // Save functions
@@ -269,139 +273,153 @@ const DeviceManagement = () => {
         loadTypeDetails(selectedType.device_type_id);
       }
     } catch (error) {
-      console.error("Error saving item:", error);
-      showError(`Failed to ${isEditing ? "update" : "create"} item. Please try again.`);
+      handleApiError(error);
     }
   };
 
   const saveBrand = async () => {
     if (!brandName.trim()) {
-      setNameError("Brand name is required");
-      return;
+      setNameError("Marka adı gereklidir");
+      return Promise.reject(new Error("Marka adı gereklidir"));
     }
 
-    if (isEditing) {
-      await deviceBrandService.updateDeviceBrand(currentItemId, {
-        device_brand_name: brandName.trim(),
-      });
-      showSuccess("The device brand has been updated.");
-    } else {
-      await deviceBrandService.createDeviceBrand({
-        device_brand_name: brandName.trim(),
-      });
-      showSuccess("New device brand has been added.");
+    try {
+      if (isEditing) {
+        await deviceManagementService.updateDeviceBrand(currentItemId, {
+          device_brand_name: brandName.trim(),
+        });
+        showSuccess("Cihaz markası güncellendi.");
+      } else {
+        await deviceManagementService.createDeviceBrand({
+          device_brand_name: brandName.trim(),
+        });
+        showSuccess("Yeni cihaz markası eklendi.");
+      }
+      return Promise.resolve();
+    } catch (error) {
+      handleApiError(error);
+      return Promise.reject(error);
     }
   };
 
   const saveType = async () => {
     if (!typeName.trim()) {
-      setNameError("Type name is required");
-      return;
+      setNameError("Tür adı gereklidir");
+      return Promise.reject(new Error("Tür adı gereklidir"));
     }
 
     if (!selectedBrand && !isEditing) {
-      showError("Please select a brand first");
-      return;
+      showError("Lütfen bir marka seçiniz");
+      return Promise.reject(new Error("Marka seçimi gereklidir"));
     }
 
-    if (isEditing) {
-      await deviceTypeService.updateDeviceType(currentItemId, {
-        device_type_name: typeName.trim(),
-        // We don't change the brand relationship when editing
-      });
-      showSuccess("The device type has been updated.");
-    } else {
-      await deviceTypeService.createDeviceType({
-        device_type_name: typeName.trim(),
-        device_brand_id: selectedBrand.device_brand_id,
-      });
-      showSuccess("New device type has been added.");
+    try {
+      if (isEditing) {
+        await deviceManagementService.updateDeviceType(currentItemId, {
+          device_type_name: typeName.trim(),
+          // We don't change the brand relationship when editing
+        });
+        showSuccess("Cihaz türü güncellendi.");
+      } else {
+        await deviceManagementService.createDeviceType({
+          device_type_name: typeName.trim(),
+          device_brand_id: selectedBrand.device_brand_id,
+        });
+        showSuccess("Yeni cihaz türü eklendi.");
+      }
+      return Promise.resolve();
+    } catch (error) {
+      handleApiError(error);
+      return Promise.reject(error);
     }
   };
 
   const saveModel = async () => {
     if (!modelName.trim()) {
-      setNameError("Model name is required");
-      return;
+      setNameError("Model adı gereklidir");
+      return Promise.reject(new Error("Model adı gereklidir"));
     }
 
     if (!selectedType && !isEditing) {
-      showError("Please select a device type first");
-      return;
+      showError("Lütfen bir cihaz türü seçiniz");
+      return Promise.reject(new Error("Tür seçimi gereklidir"));
     }
 
-    if (isEditing) {
-      await deviceModelService.updateDeviceModel(currentItemId, {
-        device_model_name: modelName.trim(),
-        // We don't change the type relationship when editing
-      });
-      showSuccess("The device model has been updated.");
-    } else {
-      // Create new device model
-      const brandId = selectedBrand?.device_brand_id;
-      const typeId = selectedType?.device_type_id;
+    try {
+      if (isEditing) {
+        await deviceManagementService.updateDeviceModel(currentItemId, {
+          device_model_name: modelName.trim(),
+          // We don't change the type relationship when editing
+        });
+        showSuccess("Cihaz modeli güncellendi.");
+      } else {
+        // Create new device model
+        const brandId = selectedBrand?.device_brand_id;
+        const typeId = selectedType?.device_type_id;
 
-      if (!typeId) {
-        showError("Device type ID is missing");
-        return;
+        if (!typeId) {
+          showError("Cihaz türü ID'si eksik");
+          return Promise.reject(new Error("Cihaz türü ID'si eksik"));
+        }
+
+        if (!brandId) {
+          showError("Cihaz marka ID'si eksik");
+          return Promise.reject(new Error("Cihaz marka ID'si eksik"));
+        }
+
+        await deviceManagementService.createDeviceModel({
+          device_model_name: modelName.trim(),
+          device_type_id: parseInt(typeId, 10),
+          device_brand_id: parseInt(brandId, 10),
+        });
+        showSuccess("Yeni cihaz modeli eklendi.");
       }
-
-      if (!brandId) {
-        showError("Device brand ID is missing");
-        return;
-      }
-
-      await deviceModelService.createDeviceModel({
-        device_model_name: modelName.trim(),
-        device_type_id: parseInt(typeId, 10),
-        device_brand_id: parseInt(brandId, 10),
-      });
-      showSuccess("New device model has been added.");
+      return Promise.resolve();
+    } catch (error) {
+      handleApiError(error);
+      return Promise.reject(error);
     }
   };
 
   // Delete functions
   const handleDeleteBrand = async (id) => {
-    if (window.confirm("Are you sure you want to delete this device brand? This will also delete all associated device types and models.")) {
+    if (window.confirm("Bu marka ve ilişkili tüm cihaz türlerini ve modellerini silmek istediğinizden emin misiniz?")) {
       try {
-        await deviceBrandService.deleteDeviceBrand(id);
-        showSuccess("The device brand has been deleted.");
+        await deviceManagementService.deleteDeviceBrand(id);
+        showSuccess("Marka başarıyla silindi.");
         loadBrands(); // Refresh brands after deletion
       } catch (error) {
-        console.error("Error deleting device brand:", error);
-        showError("Failed to delete device brand. It may have associated types or models.");
+        handleApiError(error);
       }
     }
   };
 
   const handleDeleteType = async (id) => {
-    if (window.confirm("Are you sure you want to delete this device type? This will also delete all associated models.")) {
+    if (window.confirm("Bu cihaz türünü ve ilişkili tüm modelleri silmek istediğinizden emin misiniz?")) {
       try {
-        await deviceTypeService.deleteDeviceType(id);
-        showSuccess("The device type has been deleted.");
+        await deviceManagementService.deleteDeviceType(id);
+        showSuccess("Cihaz türü başarıyla silindi.");
 
         if (selectedBrand) {
           loadBrandDetails(selectedBrand.device_brand_id); // Refresh types after deletion
         }
       } catch (error) {
-        console.error("Error deleting device type:", error);
-        showError("Failed to delete device type. It may have associated models.");
+        handleApiError(error);
       }
     }
   };
 
   const handleDeleteModel = async (id) => {
-    if (window.confirm("Are you sure you want to delete this device model?")) {
+    if (window.confirm("Bu cihaz modelini silmek istediğinizden emin misiniz?")) {
       try {
-        await deviceModelService.deleteDeviceModel(id);
-        showSuccess("The device model has been deleted.");
+        await deviceManagementService.deleteDeviceModel(id);
+        showSuccess("Cihaz modeli başarıyla silindi.");
 
         if (selectedType) {
           loadTypeDetails(selectedType.device_type_id); // Refresh models after deletion
         }
       } catch (error) {
-        console.error("Error deleting device model:", error);
-        showError("Failed to delete device model. It may be in use by active tickets.");
+        handleApiError(error);
       }
     }
   };
@@ -409,27 +427,27 @@ const DeviceManagement = () => {
   // Page title and actions based on current view
   const getPageTitle = () => {
     if (currentView === "brands") {
-      return "Device Brands";
+      return "Cihaz Markaları";
     } else if (currentView === "types") {
       return selectedBrand.device_brand_name;
     } else if (currentView === "models") {
       return selectedType.device_type_name;
     }
-    return "Device Management";
+    return "Cihaz Yönetimi";
   };
 
   const getModalTitle = () => {
-    const action = isEditing ? "Edit" : "Add";
+    const action = isEditing ? "Düzenle" : "Ekle";
 
     if (modalMode === "brand") {
-      return `${action} Device Brand`;
+      return `Cihaz Markası ${action}`;
     } else if (modalMode === "type") {
-      return `${action} Device Type`;
+      return `Cihaz Türü ${action}`;
     } else if (modalMode === "model") {
-      return `${action} Device Model`;
+      return `Cihaz Modeli ${action}`;
     }
 
-    return "Edit Item";
+    return "Öğeyi Düzenle";
   };
 
   // Pagination renderer
@@ -459,7 +477,7 @@ const DeviceManagement = () => {
 
   // Loading indicator
   if (loading) {
-    return <div className="text-center p-5">Loading...</div>;
+    return <div className="text-center p-5">Yükleniyor...</div>;
   }
 
   return (
@@ -470,18 +488,18 @@ const DeviceManagement = () => {
           <div>
             <h4 className="fw-bold py-3 mb-4">
               {currentView === "brands" ? (
-                "Device Management"
+                "Cihaz Yönetimi"
               ) : currentView === "types" ? (
                 <>
                   <span className="text-muted fw-light" onClick={navigateToBrands} style={{ cursor: "pointer" }}>
-                    Device Management /
+                    Cihaz Yönetimi /
                   </span>{" "}
                   {selectedBrand && `${selectedBrand.device_brand_name}`}
                 </>
               ) : (
                 <>
                   <span className="text-muted fw-light" onClick={navigateToBrands} style={{ cursor: "pointer" }}>
-                    Device Management /
+                    Cihaz Yönetimi /
                   </span>{" "}
                   <span className="text-muted fw-light" onClick={() => selectedBrand && navigateToTypes(selectedBrand.device_brand_id)} style={{ cursor: "pointer" }}>
                     {selectedBrand.device_brand_name} /
@@ -495,7 +513,7 @@ const DeviceManagement = () => {
             {currentView === "brands" && (
               <button type="button" className="btn btn-primary" onClick={() => openAddModal("brand")}>
                 <i className="bx bx-plus me-0 me-sm-1"></i>
-                <span className="d-none d-sm-inline-block">Add Brand</span>
+                <span className="d-none d-sm-inline-block">Marka Ekle</span>
               </button>
             )}
 
@@ -503,11 +521,11 @@ const DeviceManagement = () => {
               <>
                 <button type="button" className="btn btn-primary me-2" onClick={() => openAddModal("type")}>
                   <i className="bx bx-plus me-0 me-sm-1"></i>
-                  <span className="d-none d-sm-inline-block">Add Type</span>
+                  <span className="d-none d-sm-inline-block">Tür Ekle</span>
                 </button>
                 <button type="button" className="btn btn-outline-secondary" onClick={navigateToBrands}>
                   <i className="bx bx-arrow-back me-0 me-sm-1"></i>
-                  <span className="d-none d-sm-inline-block">Back to Brands</span>
+                  <span className="d-none d-sm-inline-block">Markalara Geri Dön</span>
                 </button>
               </>
             )}
@@ -516,12 +534,12 @@ const DeviceManagement = () => {
               <>
                 <button type="button" className="btn btn-primary me-2" onClick={() => openAddModal("model")}>
                   <i className="bx bx-plus me-0 me-sm-1"></i>
-                  <span className="d-none d-sm-inline-block">Add Model</span>
+                  <span className="d-none d-sm-inline-block">Model Ekle</span>
                 </button>
                 {selectedBrand && (
                   <button type="button" className="btn btn-outline-secondary" onClick={() => navigateToTypes(selectedBrand.device_brand_id)}>
                     <i className="bx bx-arrow-back me-0 me-sm-1"></i>
-                    <span className="d-none d-sm-inline-block">Back to Types</span>
+                    <span className="d-none d-sm-inline-block">Türlere Geri Dön</span>
                   </button>
                 )}
               </>
@@ -536,8 +554,8 @@ const DeviceManagement = () => {
           <div className="row g-3">
             <div className="col-md-12">
               <div className="form-floating form-floating-outline">
-                <input type="text" className="form-control" id="searchInput" placeholder="Search by name or ID" value={searchTerm} onChange={handleSearch} />
-                <label htmlFor="searchInput">Search</label>
+                <input type="text" className="form-control" id="searchInput" placeholder="İsim veya ID ile ara" value={searchTerm} onChange={handleSearch} />
+                <label htmlFor="searchInput">Ara</label>
               </div>
             </div>
           </div>
@@ -555,31 +573,15 @@ const DeviceManagement = () => {
       <div className="card">
         <div className="card-header d-flex justify-content-between align-items-center">
           <h5 className="card-title mb-0">{getPageTitle()}</h5>
-          <div className="card-tools">
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-primary"
-              onClick={() => {
-                if (currentView === "brands") {
-                  loadBrands();
-                } else if (currentView === "types" && selectedBrand) {
-                  loadBrandDetails(selectedBrand.device_brand_id);
-                } else if (currentView === "models" && selectedType) {
-                  loadTypeDetails(selectedType.device_type_id);
-                }
-              }}
-            >
-              <i className="bx bx-refresh me-1"></i> Refresh
-            </button>
-          </div>
+          <div className="card-tools"></div>
         </div>
         <div className="table-responsive text-nowrap">
           <table className="table table-hover">
             <thead>
               <tr>
                 <th>ID</th>
-                <th>{currentView === "brands" ? "Brand Name" : currentView === "types" ? "Type Name" : "Model Name"}</th>
-                <th>Actions</th>
+                <th>{currentView === "brands" ? "Marka Adı" : currentView === "types" ? "Tür Adı" : "Model Adı"}</th>
+                <th>İşlemler</th>
               </tr>
             </thead>
             <tbody className="table-border-bottom-0">
@@ -587,14 +589,14 @@ const DeviceManagement = () => {
                 <tr>
                   <td colSpan="3" className="text-center py-4">
                     <div className="spinner-border text-primary" role="status">
-                      <span className="visually-hidden">Loading...</span>
+                      <span className="visually-hidden">Yükleniyor...</span>
                     </div>
                   </td>
                 </tr>
               ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan="3" className="text-center py-4">
-                    No records found
+                    Kayıt bulunamadı
                   </td>
                 </tr>
               ) : (
@@ -616,7 +618,7 @@ const DeviceManagement = () => {
                             e.stopPropagation(); // Satır tıklamasını engelle
                             openEditModal(item, currentView === "brands" ? "brand" : currentView === "types" ? "type" : "model");
                           }}
-                          title={currentView === "brands" ? "Edit Brand" : currentView === "types" ? "Edit Type" : "Edit Model"}
+                          title={currentView === "brands" ? "Markayı Düzenle" : currentView === "types" ? "Türü Düzenle" : "Modeli Düzenle"}
                         >
                           <span className="tf-icons ri-pencil-line"></span>
                         </button>
@@ -634,7 +636,7 @@ const DeviceManagement = () => {
                               handleDeleteModel(item.device_model_id);
                             }
                           }}
-                          title={currentView === "brands" ? "Delete Brand" : currentView === "types" ? "Delete Type" : "Delete Model"}
+                          title={currentView === "brands" ? "Markayı Sil" : currentView === "types" ? "Türü Sil" : "Modeli Sil"}
                         >
                           <span className="tf-icons ri-delete-bin-6-line"></span>
                         </button>
@@ -668,7 +670,7 @@ const DeviceManagement = () => {
               </ul>
             </nav>
             <div className="text-center text-muted mt-1">
-              Total {filteredItems.length} records, {totalPages} pages
+              Toplam {filteredItems.length} kayıt, {totalPages} sayfa
             </div>
           </div>
         )}
@@ -689,7 +691,7 @@ const DeviceManagement = () => {
               {modalMode === "brand" && (
                 <div className="mb-3">
                   <label htmlFor="brandName" className="form-label">
-                    Device Brand Name
+                    Cihaz Marka Adı
                   </label>
                   <input type="text" className={`form-control ${nameError ? "is-invalid" : ""}`} id="brandName" value={brandName} onChange={handleBrandNameChange} />
                   {nameError && <div className="invalid-feedback">{nameError}</div>}
@@ -701,14 +703,14 @@ const DeviceManagement = () => {
                 <>
                   <div className="mb-3">
                     <label htmlFor="typeName" className="form-label">
-                      Device Type Name
+                      Cihaz Tür Adı
                     </label>
                     <input type="text" className={`form-control ${nameError ? "is-invalid" : ""}`} id="typeName" value={typeName} onChange={handleTypeNameChange} />
                     {nameError && <div className="invalid-feedback">{nameError}</div>}
                   </div>
                   {!isEditing && selectedBrand && (
                     <div className="mb-3">
-                      <label className="form-label">Brand</label>
+                      <label className="form-label">Marka</label>
                       <input type="text" className="form-control" value={selectedBrand?.device_brand_name || ""} disabled />
                     </div>
                   )}
@@ -720,7 +722,7 @@ const DeviceManagement = () => {
                 <>
                   <div className="mb-3">
                     <label htmlFor="modelName" className="form-label">
-                      Device Model Name
+                      Cihaz Model Adı
                     </label>
                     <input type="text" className={`form-control ${nameError ? "is-invalid" : ""}`} id="modelName" value={modelName} onChange={handleModelNameChange} />
                     {nameError && <div className="invalid-feedback">{nameError}</div>}
@@ -728,11 +730,11 @@ const DeviceManagement = () => {
                   {!isEditing && (
                     <>
                       <div className="mb-3">
-                        <label className="form-label">Brand</label>
+                        <label className="form-label">Marka</label>
                         <input type="text" className="form-control" value={selectedBrand?.device_brand_name || ""} disabled />
                       </div>
                       <div className="mb-3">
-                        <label className="form-label">Device Type</label>
+                        <label className="form-label">Cihaz Türü</label>
                         <input type="text" className="form-control" value={selectedType?.device_type_name || ""} disabled />
                       </div>
                     </>
@@ -742,10 +744,10 @@ const DeviceManagement = () => {
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={closeModal}>
-                Cancel
+                İptal
               </button>
               <button type="button" className="btn btn-primary" onClick={handleSaveItem}>
-                {isEditing ? "Update" : "Save"}
+                {isEditing ? "Güncelle" : "Kaydet"}
               </button>
             </div>
           </div>

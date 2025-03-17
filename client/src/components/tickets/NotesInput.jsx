@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-const predefinedMessages = ["Parca geldiginde müsteri aranacak", "Cihaz teslim alindi", "Cihaz teslim alinmadi", "Garanti kapsaminda onarilacak"];
+const predefinedMessages = ["Parça geldiğinde müşteri aranacak", "Cihaz teslim alındı", "Cihaz teslim alınmadı", "Garanti kapsamında onarılacak"];
 
 function NotesInput({ formData, handleChange }) {
   // Hazır mesaj şablonları
@@ -71,8 +71,8 @@ function NotesInput({ formData, handleChange }) {
       <div className="col-md-8">
         {" "}
         <div className="form-floating form-floating-outline mb-4">
-          <textarea name="ticket_notes" value={formData.ticket_notes || ""} onChange={handleChange} className="form-control" id="ticket_notes" placeholder="Enter any notes about the ticket" style={{ height: "120px" }}></textarea>
-          <label htmlFor="ticket_notes">Notes</label>
+          <textarea name="ticket_notes" value={formData.ticket_notes || ""} onChange={handleChange} className="form-control" id="ticket_notes" placeholder="Servis fişi hakkında notlar giriniz" style={{ height: "120px" }}></textarea>
+          <label htmlFor="ticket_notes">Notlar</label>
         </div>
       </div>
       <div className="col-md-4 mb-4">

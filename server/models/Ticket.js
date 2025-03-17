@@ -10,7 +10,7 @@ export const getTicketById = async (id) => {
   const [rows] = await pool.query(
     `SELECT 
         t.*,
-        c.customer_id,c.customer_type, c.customer_name, c.customer_phone, c.customer_email, c.customer_address,
+        c.customer_id,c.customer_type, c.customer_name, c.customer_phone, c.customer_email, c.customer_address,c.customer_notification,
         dt.device_type_id, dt.device_type_name,
         db.device_brand_id, db.device_brand_name,
         dm.device_model_id, dm.device_model_name
@@ -59,14 +59,12 @@ export const getTicketById = async (id) => {
 export const createTicket = async (ticket) => {
   const { customer_name, order_spare_parts, operation_ids, device_type_name, device_brand_name, device_model_name, ...ticketData } = ticket;
   const [rows] = await pool.query("INSERT INTO tickets SET ?", [ticketData]);
-  console.log(operation_ids);
 
   // Add ticket_id to each operation object
   const operationsWithTicketId = operation_ids.map((operation) => ({
     ...operation,
     ticket_id: rows.insertId,
   }));
-  console.log(operationsWithTicketId);
   // Insert operations into ticket_operations
   const [operationRows] = await pool.query("INSERT INTO ticket_operations (operation_id, ticket_id, ticket_operation_price) VALUES ?", [operationsWithTicketId.map((op) => [op.operation_id, op.ticket_id, op.ticket_operation_price])]);
 
@@ -74,9 +72,6 @@ export const createTicket = async (ticket) => {
 };
 
 export const updateTicket = async (id, ticket) => {
-  console.log("ticket");
-  console.log(ticket);
-
   const [rows] = await pool.query("UPDATE tickets SET ? WHERE ticket_id = ?", [ticket, id]);
   return rows[0];
 };

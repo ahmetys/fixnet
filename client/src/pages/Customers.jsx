@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
 import * as customerService from "../services/customer.service";
-import { useLocation } from "react-router-dom";
-import { useNotification } from "../hooks/useNotification";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useNotification } from "../contexts/NotificationContext";
 
 const Customers = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [customerType, setCustomerType] = useState("");
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, handleApiError } = useNotification();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -25,7 +26,7 @@ const Customers = () => {
     customer_address: "",
     customer_type: "individual",
     customer_company: "",
-    customer_notification: "",
+    customer_notification: "call",
   });
   const [formErrors, setFormErrors] = useState({});
   const [isEditing, setIsEditing] = useState(false);
@@ -36,13 +37,10 @@ const Customers = () => {
     try {
       setLoading(true);
       const data = await customerService.getAllCustomers();
-      console.log("Fetched customers:", data);
       setCustomers(data);
       setError(null);
     } catch (err) {
-      setError("Failed to load customers");
-      console.error(err);
-      showError("Failed to load customers. Please try again later.");
+      handleApiError(err);
     } finally {
       setLoading(false);
     }
@@ -60,7 +58,6 @@ const Customers = () => {
 
   // Filtering logic
   const filteredCustomers = customers.filter((customer) => {
-    console.log("Filtering customer:", customer, "with type:", customerType);
     const searchTermLower = searchTerm.toLowerCase();
 
     // Type filter
@@ -94,20 +91,18 @@ const Customers = () => {
   };
 
   const handleCustomerTypeChange = (e) => {
-    console.log("Customer type changed to:", e.target.value);
     setCustomerType(e.target.value);
     setCurrentPage(1);
   };
 
   const handleDeleteCustomer = async (id) => {
-    if (window.confirm("Are you sure you want to delete this customer?")) {
+    if (window.confirm("Müşteriyi silmek istediğinize emin misiniz?")) {
       try {
         await customerService.deleteCustomer(id);
-        showSuccess("The customer has been deleted successfully.");
+        showSuccess("Müşteri başarıyla silindi.");
         fetchData(); // Refresh data after deletion
       } catch (error) {
-        console.error("Error deleting customer:", error);
-        showError("Failed to delete customer. Please try again.");
+        handleApiError(error);
       }
     }
   };
@@ -121,7 +116,7 @@ const Customers = () => {
       customer_address: "",
       customer_type: "individual",
       customer_company: "",
-      customer_notification: "",
+      customer_notification: "call",
     });
     setFormErrors({});
     setIsEditing(false);
@@ -130,7 +125,6 @@ const Customers = () => {
   };
 
   const openUpdateModal = (customer) => {
-    console.log("Opening update modal with customer:", customer);
     setFormData({
       customer_name: customer.customer_name || "",
       customer_phone: customer.customer_phone || "",
@@ -152,7 +146,6 @@ const Customers = () => {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    console.log(`Form field changed: ${name} = ${value}`);
 
     setFormData((prev) => {
       const newData = {
@@ -206,22 +199,19 @@ const Customers = () => {
     }
 
     try {
-      console.log("Saving customer with data:", formData);
-
       if (isEditing) {
         // Update existing customer
         await customerService.updateCustomer(currentCustomerId, formData);
-        showSuccess("The customer has been updated successfully.");
+        showSuccess("Müşteri başarıyla güncellendi.");
       } else {
         // Create new customer
         await customerService.createCustomer(formData);
-        showSuccess("New customer has been added successfully.");
+        showSuccess("Yeni müşteri başarıyla eklendi.");
       }
       closeModal();
       fetchData(); // Refresh the list
     } catch (error) {
-      console.error("Error saving customer:", error);
-      showError(`Failed to ${isEditing ? "update" : "create"} customer. Please try again.`);
+      handleApiError(error);
     }
   };
 
@@ -267,16 +257,21 @@ const Customers = () => {
 
   const customerCounts = getCustomerTypeCounts();
 
+  // Müşteri detay sayfasına yönlendirme için yeni fonksiyon
+  const navigateToCustomerDetail = (customerId) => {
+    navigate(`/customers/${customerId}`);
+  };
+
   return (
     <div className="container-xxl flex-grow-1 container-p-y">
       <div className="card bg-transparent shadow-none border-0 my-4">
         <div className="card-body p-0 d-flex justify-content-between align-items-center">
           <div>
-            <h4 className="fw-bold py-3 mb-4"> Customers</h4>
+            <h4 className="fw-bold py-3 mb-4"> Müşteriler</h4>
           </div>
           <div>
             <button type="button" className="btn btn-primary" onClick={openAddModal}>
-              Add
+              Müşteri Ekle
             </button>
           </div>
         </div>
@@ -288,16 +283,16 @@ const Customers = () => {
           <div className="row g-3">
             <div className="col-md-9">
               <div className="form-floating form-floating-outline">
-                <input type="text" className="form-control" id="searchInput" placeholder="Search by name or ID" value={searchTerm} onChange={handleSearch} />
-                <label htmlFor="searchInput">Search</label>
+                <input type="text" className="form-control" id="searchInput" placeholder="İsim veya ID ile arama" value={searchTerm} onChange={handleSearch} />
+                <label htmlFor="searchInput">Arama</label>
               </div>
             </div>
             <div className="col-md-3">
               <div className="form-floating form-floating-outline">
                 <select className="form-select" onChange={handleCustomerTypeChange} value={customerType}>
-                  <option value="">All Types ({customerCounts.total})</option>
-                  <option value="individual">Individual ({customerCounts.individual})</option>
-                  <option value="commercial">Commercial ({customerCounts.commercial})</option>
+                  <option value="">Tümü ({customerCounts.total})</option>
+                  <option value="individual">Bireysel ({customerCounts.individual})</option>
+                  <option value="commercial">Firma ({customerCounts.commercial})</option>
                 </select>
               </div>
             </div>
@@ -314,12 +309,8 @@ const Customers = () => {
 
       <div className="card">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="card-title mb-0">Customers List</h5>
-          <div className="card-tools">
-            <button type="button" className="btn btn-sm btn-outline-primary">
-              <i className="bx bx-refresh me-1"></i> Refresh
-            </button>
-          </div>
+          <h5 className="card-title mb-0">Müşteri Listesi</h5>
+          <div className="card-tools"></div>
         </div>
         <div className="card-datatable table-responsive">
           <div className="table-responsive text-nowrap">
@@ -327,13 +318,13 @@ const Customers = () => {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Company</th>
-                  <th>Phone</th>
+                  <th>İsim</th>
+                  <th>Tür</th>
+                  <th>Firma</th>
+                  <th>Telefon</th>
                   <th>Email</th>
-                  <th>Notification</th>
-                  <th>Actions</th>
+                  <th>Bildirim</th>
+                  <th>İşlemler</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,7 +332,7 @@ const Customers = () => {
                   <tr>
                     <td colSpan="8" className="text-center">
                       <div className="spinner-border text-primary" role="status">
-                        <span className="visually-hidden">Loading...</span>
+                        <span className="visually-hidden">Yükleniyor...</span>
                       </div>
                     </td>
                   </tr>
@@ -350,10 +341,10 @@ const Customers = () => {
                     <td colSpan="8" className="text-center py-4">
                       <div className="p-2">
                         <i className="ri-information-line text-primary ri-2x mb-2"></i>
-                        <p>No customers found with the current filters.</p>
+                        <p>Mevcut filtrelere uygun müşteri bulunamadı.</p>
                         {customerType && (
                           <button className="btn btn-sm btn-outline-primary" onClick={() => setCustomerType("")}>
-                            Clear Filters
+                            Filtreleri Temizle
                           </button>
                         )}
                       </div>
@@ -361,18 +352,25 @@ const Customers = () => {
                   </tr>
                 ) : (
                   currentItems.map((customer) => (
-                    <tr key={customer.customer_id}>
+                    <tr key={customer.customer_id} onClick={() => navigateToCustomerDetail(customer.customer_id)} style={{ cursor: "pointer" }} className="customer-table-row">
                       <td>#{customer.customer_id}</td>
                       <td>{customer.customer_name}</td>
                       <td>
-                        <span className={`badge ${customer.customer_type === "commercial" ? "bg-label-primary" : "bg-label-success"}`}>{customer.customer_type === "commercial" ? "Commercial" : "Individual"}</span>
+                        <span className={`badge ${customer.customer_type === "commercial" ? "bg-label-primary" : "bg-label-success"}`}>{customer.customer_type === "commercial" ? "Ticari" : "Bireysel"}</span>
                       </td>
                       <td>{customer.customer_company || "-"}</td>
                       <td>{customer.customer_phone || "-"}</td>
                       <td>{customer.customer_email || "-"}</td>
                       <td>{customer.customer_notification ? <span className="badge bg-label-info">{getNotificationLabel(customer.customer_notification)}</span> : <span className="text-muted">-</span>}</td>
                       <td className="">
-                        <button type="button" className="btn rounded-pill btn-icon btn-primary waves-effect mx-2" onClick={() => openUpdateModal(customer)}>
+                        <button
+                          type="button"
+                          className="btn rounded-pill btn-icon btn-primary waves-effect mx-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openUpdateModal(customer);
+                          }}
+                        >
                           <span className="tf-icons ri-pencil-line ri-22px"></span>
                         </button>
 
@@ -380,7 +378,7 @@ const Customers = () => {
                           type="button"
                           className="btn rounded-pill btn-icon btn-danger waves-effect mx-2"
                           onClick={(e) => {
-                            e.preventDefault();
+                            e.stopPropagation();
                             handleDeleteCustomer(customer.customer_id);
                           }}
                         >
@@ -415,7 +413,7 @@ const Customers = () => {
                 </ul>
               </nav>
               <div className="text-center text-muted mt-1">
-                Total {filteredCustomers.length} records, {totalPages} pages
+                Toplam {filteredCustomers.length} kayıt, {totalPages} sayfa
               </div>
             </div>
           )}
@@ -427,7 +425,7 @@ const Customers = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title" id="customerModalLabel">
-                  {isEditing ? "Edit Customer" : "Add Customer"}
+                  {isEditing ? "Müşteriyi Düzenle" : "Müşteri Ekle"}
                 </h5>
                 <button type="button" className="btn-close" onClick={closeModal} aria-label="Close"></button>
               </div>
@@ -435,23 +433,23 @@ const Customers = () => {
                 <div className="row mb-3">
                   <div className="col-md-6">
                     <label htmlFor="customer_name" className="form-label">
-                      Customer Name
+                      Müşteri İsim
                     </label>
                     <input type="text" className={`form-control ${formErrors.customer_name ? "is-invalid" : ""}`} id="customer_name" name="customer_name" value={formData.customer_name} onChange={handleFormChange} autoFocus />
                     {formErrors.customer_name && <div className="invalid-feedback">{formErrors.customer_name}</div>}
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label d-block">Customer Type</label>
+                    <label className="form-label d-block">Müşteri Türü</label>
                     <div className="form-check form-check-inline mt-2">
                       <input className="form-check-input" type="radio" name="customer_type" id="customerTypeIndividual" value="individual" checked={formData.customer_type === "individual"} onChange={handleFormChange} />
                       <label className="form-check-label" htmlFor="customerTypeIndividual">
-                        Individual
+                        Bireysel
                       </label>
                     </div>
                     <div className="form-check form-check-inline">
                       <input className="form-check-input" type="radio" name="customer_type" id="customerTypeCommercial" value="commercial" checked={formData.customer_type === "commercial"} onChange={handleFormChange} />
                       <label className="form-check-label" htmlFor="customerTypeCommercial">
-                        Commercial
+                        Firma
                       </label>
                     </div>
                   </div>
@@ -460,7 +458,7 @@ const Customers = () => {
                 {formData.customer_type === "commercial" && (
                   <div className="mb-3">
                     <label htmlFor="customer_company" className="form-label">
-                      Company Name
+                      Firma Adı
                     </label>
                     <input type="text" className={`form-control ${formErrors.customer_company ? "is-invalid" : ""}`} id="customer_company" name="customer_company" value={formData.customer_company} onChange={handleFormChange} />
                     {formErrors.customer_company && <div className="invalid-feedback">{formErrors.customer_company}</div>}
@@ -470,14 +468,14 @@ const Customers = () => {
                 <div className="row mb-3">
                   <div className="col-md-6">
                     <label htmlFor="customer_phone" className="form-label">
-                      Phone Number
+                      Telefon Numarası
                     </label>
                     <input type="text" className={`form-control ${formErrors.customer_phone ? "is-invalid" : ""}`} id="customer_phone" name="customer_phone" value={formData.customer_phone} onChange={handleFormChange} />
                     {formErrors.customer_phone && <div className="invalid-feedback">{formErrors.customer_phone}</div>}
                   </div>
                   <div className="col-md-6">
                     <label htmlFor="customer_email" className="form-label">
-                      Email
+                      Email Adresi
                     </label>
                     <input type="email" className={`form-control ${formErrors.customer_email ? "is-invalid" : ""}`} id="customer_email" name="customer_email" value={formData.customer_email} onChange={handleFormChange} />
                     {formErrors.customer_email && <div className="invalid-feedback">{formErrors.customer_email}</div>}
@@ -486,13 +484,13 @@ const Customers = () => {
 
                 <div className="mb-3">
                   <label htmlFor="customer_address" className="form-label">
-                    Address
+                    Adres
                   </label>
                   <textarea className="form-control" id="customer_address" name="customer_address" rows="3" value={formData.customer_address} onChange={handleFormChange}></textarea>
                 </div>
 
                 <div className="mb-3">
-                  <label className="form-label d-block">Preferred Notification Method</label>
+                  <label className="form-label d-block">Tercih Edilen Bildirim Yöntemi</label>
                   <div className="form-check form-check-inline mt-2">
                     <input className="form-check-input" type="radio" name="customer_notification" id="notificationSMS" value="sms" checked={formData.customer_notification === "sms"} onChange={handleFormChange} />
                     <label className="form-check-label" htmlFor="notificationSMS">
@@ -502,7 +500,7 @@ const Customers = () => {
                   <div className="form-check form-check-inline">
                     <input className="form-check-input" type="radio" name="customer_notification" id="notificationCall" value="call" checked={formData.customer_notification === "call"} onChange={handleFormChange} />
                     <label className="form-check-label" htmlFor="notificationCall">
-                      Call
+                      Telefon
                     </label>
                   </div>
                   <div className="form-check form-check-inline">
@@ -517,20 +515,14 @@ const Customers = () => {
                       WhatsApp
                     </label>
                   </div>
-                  <div className="form-check form-check-inline">
-                    <input className="form-check-input" type="radio" name="customer_notification" id="notificationNone" value="" checked={formData.customer_notification === ""} onChange={handleFormChange} />
-                    <label className="form-check-label" htmlFor="notificationNone">
-                      None
-                    </label>
-                  </div>
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline-secondary" onClick={closeModal}>
-                  Cancel
+                  İptal
                 </button>
                 <button type="button" className="btn btn-primary" onClick={handleSaveCustomer}>
-                  {isEditing ? "Update" : "Save"}
+                  {isEditing ? "Güncelle" : "Kaydet"}
                 </button>
               </div>
             </div>
@@ -540,6 +532,16 @@ const Customers = () => {
         {/* Backdrop for modal */}
         {showModal && <div className="modal-backdrop fade show" onClick={closeModal}></div>}
       </div>
+
+      {/* CSS sınıfı için stil ekleyin (isteğe bağlı) */}
+      <style>
+        {`
+        .customer-table-row:hover {
+          background-color: #f8f9fa;
+          transition: background-color 0.2s;
+        }
+      `}
+      </style>
     </div>
   );
 };

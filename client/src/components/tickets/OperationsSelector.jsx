@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as operationService from "../../services/operation.service";
-import { useNotification } from "../../hooks/useNotification";
+import { useNotification } from "../../contexts/NotificationContext";
 
 function OperationsSelector({ selectedOperations, onOperationSelect, onOperationRemove, operationCosts, onOperationCostChange, advancePayment, onAdvancePaymentChange, showValidation = false }) {
   const [operations, setOperations] = useState([]);
@@ -20,15 +20,18 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
   const operationInputRef = useRef(null);
   const inputRef = useRef(null);
   const priceInputRefs = useRef({});
-  const { showError } = useNotification();
+  const { showError, handleApiError } = useNotification();
 
-  // Calculate estimated cost
+  // Tahmini maliyet hesapla
   const estimatedCost = selectedOperations.reduce((total, operationId) => total + parseFloat(operationCosts[operationId] || 0), 0);
 
-  // Calculate remaining balance
+  // Kalan bakiye hesapla
   const remainingBalance = estimatedCost - parseFloat(advancePayment || 0);
 
-  // Fetch operations on component mount
+  // Hata gösterme durumunun kontrolü
+  const validationError = showValidation && (!selectedOperations || selectedOperations.length === 0);
+
+  // İşlemleri component yüklendiğinde getir
   useEffect(() => {
     const fetchOperations = async () => {
       try {
@@ -37,31 +40,36 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
         setOperations(data);
         setError(null);
       } catch (err) {
-        setError("Failed to load operations");
-        console.error(err);
+        setError("İşlemler yüklenirken hata oluştu");
+        handleApiError(err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchOperations();
-  }, []);
+  }, [handleApiError]);
 
-  // Focus on the newly added operation's price input
+  // Yeni eklenen işlemin fiyat input'una odaklan
   useEffect(() => {
     if (newlyAddedOperationId && priceInputRefs.current[newlyAddedOperationId]) {
-      // Use a small timeout to ensure the DOM has updated
+      // DOM güncellemesinden emin olmak için küçük bir gecikme
       setTimeout(() => {
-        priceInputRefs.current[newlyAddedOperationId]?.focus();
+        const inputRef = priceInputRefs.current[newlyAddedOperationId];
+        if (inputRef) {
+          inputRef.focus();
+          // Metni seç
+          inputRef.select();
+        }
         setNewlyAddedOperationId(null);
       }, 10);
     }
   }, [newlyAddedOperationId, selectedOperations]);
 
-  // Filter operations based on search term, excluding already selected operations
+  // Arama terimine göre işlemleri filtrele, zaten seçilenleri hariç tut
   const filteredOperations = operationSearchTerm.length >= 1 ? operations.filter((op) => op.operation_name.toLowerCase().includes(operationSearchTerm.toLowerCase()) && !selectedOperations.includes(op.operation_id)) : operations.filter((op) => !selectedOperations.includes(op.operation_id));
 
-  // Close dropdown when clicking outside
+  // Dışarı tıklandığında dropdown'ı kapat
   useEffect(() => {
     function handleClickOutside(event) {
       if (operationInputRef.current && !operationInputRef.current.contains(event.target)) {
@@ -82,12 +90,12 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
   };
 
   const handleBlur = (e) => {
-    // Don't blur if clicking inside the container
+    // Container içine tıklanırsa blur etme
     if (operationInputRef.current && operationInputRef.current.contains(e.relatedTarget)) {
       return;
     }
 
-    // Don't blur if clicking on a dropdown item
+    // Dropdown öğesine tıklanırsa blur etme
     if (e.relatedTarget && e.relatedTarget.classList.contains("dropdown-item")) {
       return;
     }
@@ -111,57 +119,62 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
 
   const handleSaveNewOperation = async () => {
     if (!newOperation.operation_name.trim()) {
-      showError("Operation name cannot be empty");
+      showError("İşlem adı boş olamaz");
       return;
     }
 
     try {
-      // Check if a similar operation already exists
+      // Benzer bir işlem var mı kontrol et
       const existing = operations.find((op) => op.operation_name.toLowerCase() === newOperation.operation_name.toLowerCase());
 
       if (existing) {
-        showError("An operation with this name already exists");
+        showError("Bu isimde bir işlem zaten mevcut");
         return;
       }
 
-      // Save new operation
+      // Yeni işlemi kaydet
       const createdOperationId = await operationService.createOperation(newOperation);
 
-      // Fetch the created operation
+      // Oluşturulan işlemi getir
       const createdOperation = await operationService.getOperationById(createdOperationId);
 
-      // Update the operations list
+      // İşlemler listesini güncelle
       setOperations([...operations, createdOperation]);
 
-      // Select the newly created operation
-      onOperationSelect(createdOperation.operation_id, parseFloat(createdOperation.operation_default_price));
+      // Yeni oluşturulan işlemi seç
+      onOperationSelect(createdOperation.operation_id, parseFloat(createdOperation.operation_default_price || 0));
       setNewlyAddedOperationId(createdOperation.operation_id);
 
-      // Update UI state
+      // UI durumunu güncelle
       setOperationSearchTerm("");
       setShowOperationDropdown(false);
       setShowNewOperationModal(false);
 
-      // Reset the form
+      // Formu sıfırla
       setNewOperation({
         operation_name: "",
-        operation_default_price: "0",
+        operation_default_price: "",
       });
     } catch (err) {
-      showError("Failed to create operation: " + (err.message || "Unknown error"));
-      console.error(err);
+      showError("İşlem oluşturulurken hata oluştu");
+      handleApiError(err);
     }
   };
 
-  // Handle advance payment change
+  // Avans ödeme değişikliği
   const handleAdvancePaymentChange = (e) => {
     const value = e.target.value;
 
-    // Ensure value is not negative
+    if (value === "") {
+      onAdvancePaymentChange("");
+      return;
+    }
+
+    // Değerin negatif olmadığından emin ol
     const parsedValue = parseFloat(value);
     if (parsedValue < 0) return;
 
-    // Ensure value doesn't exceed estimated cost
+    // Değerin tahmini maliyeti aşmadığından emin ol
     if (parsedValue > estimatedCost) {
       onAdvancePaymentChange(estimatedCost.toString());
       return;
@@ -172,52 +185,62 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
 
   const resetAdvancePayment = (e) => {
     e.preventDefault();
-    onAdvancePaymentChange("0");
+    onAdvancePaymentChange("");
   };
 
-  // Format number as currency
+  const setFullPayment = (e) => {
+    e.preventDefault();
+    onAdvancePaymentChange(estimatedCost.toString());
+  };
+
+  // İnput değerini güzel formatlayan yardımcı fonksiyon
+  const formatInputValue = (value) => {
+    if (!value && value !== 0) return "";
+    return value;
+  };
+
+  // Sayıyı para birimi olarak formatla
   const formatCurrency = (value) => {
+    if (!value && value !== 0) return "₺0,00";
+
     return new Intl.NumberFormat("tr-TR", {
       style: "currency",
-      currency: "EUR",
+      currency: "TRY",
     }).format(value);
   };
 
-  // Hata gösterme durumunun kontrolü
-  const showError2 = showValidation && (!selectedOperations || selectedOperations.length === 0);
-
   return (
     <div className="mb-4">
-      {/* Show fetch error if any */}
+      {/* Hata göster */}
       {error && <div className="alert alert-warning mb-3">{error}</div>}
 
-      {/* Operation Input with Tags */}
+      {/* İşlem Giriş Alanı */}
       <div className="row mb-3">
         <div className="col">
           <div className="form-floating form-floating-outline position-relative" ref={operationInputRef}>
             <div
-              className={`form-control ${isInputFocused ? "border-primary" : ""} ${showError2 ? "is-invalid" : ""} d-flex flex-wrap align-items-center`}
+              className={`form-control ${isInputFocused ? "border-primary" : ""} ${validationError ? "is-invalid" : ""} d-flex flex-wrap align-items-center`}
               style={{ height: "auto", minHeight: "calc(3.5rem + 2px)", paddingTop: "0.5rem", paddingBottom: "0.5rem" }}
               onClick={() => inputRef.current?.focus()}
             >
-              {/* Selected Operation Tags */}
+              {/* Seçili İşlem Etiketleri */}
               {selectedOperations.length > 0 &&
                 selectedOperations.map((operationId) => {
                   const operation = operations.find((op) => op.operation_id === operationId);
                   return (
                     <div key={operationId} className="badge bg-primary me-1 mb-1 d-flex align-items-center" style={{ fontSize: "0.875rem" }}>
-                      <span>{operation?.operation_name || "Unknown"}</span>
-                      <button type="button" className="btn-close btn-close-white ms-2" style={{ fontSize: "0.5rem" }} onClick={() => onOperationRemove(operationId)} aria-label="Remove"></button>
+                      <span>{operation?.operation_name || "Bilinmeyen"}</span>
+                      <button type="button" className="btn-close btn-close-white ms-2" style={{ fontSize: "0.5rem" }} onClick={() => onOperationRemove(operationId)} aria-label="Kaldır"></button>
                     </div>
                   );
                 })}
 
-              {/* Search Input */}
+              {/* Arama Girişi */}
               <input
                 ref={inputRef}
                 type="text"
                 className="border-0 flex-grow-1 bg-transparent p-0 ps-1"
-                placeholder={selectedOperations.length ? "Add more operations..." : "Service Operation *"}
+                placeholder={selectedOperations.length ? "Daha fazla işlem ekle..." : "Servis İşlemi *"}
                 value={operationSearchTerm}
                 onChange={handleOperationSearchChange}
                 onFocus={handleFocus}
@@ -228,20 +251,20 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
             </div>
             {isInputFocused && (
               <label className="text-primary" htmlFor="operation-search" style={{ opacity: selectedOperations.length > 0 ? 0 : 1 }}>
-                Search Operation<span className="text-danger"> *</span>
+                İşlem Ara<span className="text-danger"> *</span>
               </label>
             )}
 
-            {showError2 && <div className="invalid-feedback d-block">At least one operation must be selected</div>}
+            {validationError && <div className="invalid-feedback d-block">En az bir işlem seçilmelidir</div>}
 
-            {/* Loading indicator */}
+            {/* Yükleniyor göstergesi */}
             {loading && (
               <div className="position-absolute top-50 end-0 translate-middle-y me-3">
                 <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
               </div>
             )}
 
-            {/* Operations dropdown */}
+            {/* İşlemler dropdown */}
             {showOperationDropdown && !loading && (
               <div
                 className="dropdown-menu d-block position-absolute w-100 overflow-auto"
@@ -258,7 +281,7 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
-                        onOperationSelect(operation.operation_id, parseFloat(operation.operation_default_price));
+                        onOperationSelect(operation.operation_id, parseFloat(operation.operation_default_price || 0));
                         setOperationSearchTerm("");
                         setShowOperationDropdown(false);
                         setNewlyAddedOperationId(operation.operation_id);
@@ -269,7 +292,7 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
                   ))
                 ) : (
                   <div className="dropdown-item-text text-center py-2">
-                    <div>No matching operations found</div>
+                    <div>Eşleşen işlem bulunamadı</div>
                     <button
                       className="btn btn-sm btn-primary mt-2"
                       onClick={(e) => {
@@ -284,7 +307,7 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
                         }
                       }}
                     >
-                      <i className="ri-add-line me-1"></i> Add New Operation
+                      <i className="ri-add-line me-1"></i> Yeni İşlem Ekle
                     </button>
                   </div>
                 )}
@@ -294,15 +317,15 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
         </div>
       </div>
 
-      {/* Selected Operations Table - Only show when operations are selected */}
+      {/* Seçili İşlemler Tablosu - Sadece işlem seçildiğinde göster */}
       {selectedOperations.length > 0 && (
-        <div className="table-responsive ">
+        <div className="table-responsive">
           <table className="table table-bordered m-0">
             <thead>
               <tr>
-                <th>Operation</th>
-                <th style={{ width: "200px" }}>Price</th>
-                <th style={{ width: "80px" }}>Actions</th>
+                <th>İşlem</th>
+                <th style={{ width: "200px" }}>Fiyat</th>
+                <th style={{ width: "80px" }}>İşlemler</th>
               </tr>
             </thead>
             <tbody>
@@ -310,20 +333,21 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
                 const operation = operations.find((op) => op.operation_id === operationId);
                 return (
                   <tr key={operationId}>
-                    <td>{operation?.operation_name || "Deleted Operation"}</td>
+                    <td>{operation?.operation_name || "Silinmiş İşlem"}</td>
                     <td>
                       <div className="input-group">
-                        <span className="input-group-text">€</span>
+                        <span className="input-group-text">₺</span>
                         <input
                           type="number"
                           className="form-control"
-                          value={operationCosts[operationId] || 0}
+                          value={formatInputValue(operationCosts[operationId])}
                           onChange={(e) => {
                             const newCost = e.target.value;
                             onOperationCostChange(operationId, newCost);
                           }}
                           min="0"
                           step="0.01"
+                          placeholder="0.00"
                           ref={(el) => (priceInputRefs.current[operationId] = el)}
                         />
                       </div>
@@ -337,29 +361,34 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
                 );
               })}
 
-              {/* Total and Advance Payment rows */}
+              {/* Toplam ve Avans Ödeme Satırları */}
               <tr>
-                <td className="text-end fw-bold">Estimated Total:</td>
+                <td className="text-end fw-bold">Tahmini Toplam:</td>
                 <td colSpan="2" className="fw-bold">
                   {formatCurrency(estimatedCost)}
                 </td>
               </tr>
               <tr>
-                <td className="text-end fw-bold">Advance Payment:</td>
+                <td className="text-end fw-bold">Avans Ödeme:</td>
                 <td>
                   <div className="input-group">
-                    <span className="input-group-text">€</span>
-                    <input type="number" className="form-control" value={advancePayment} onChange={handleAdvancePaymentChange} min="0" max={estimatedCost} step="0.01" />
+                    <span className="input-group-text">₺</span>
+                    <input type="number" className="form-control" value={formatInputValue(advancePayment)} onChange={handleAdvancePaymentChange} min="0" max={estimatedCost} step="0.01" placeholder="0.00" />
                   </div>
                 </td>
                 <td className="text-center">
-                  <button className="btn btn-sm btn-icon btn-outline-primary" onClick={(e) => resetAdvancePayment(e)}>
-                    <i className="ri-refresh-line"></i>
-                  </button>
+                  <div className="btn-group">
+                    <button className="btn btn-sm btn-icon btn-outline-secondary" onClick={resetAdvancePayment} title="Avansı Sıfırla">
+                      <i className="ri-refresh-line"></i>
+                    </button>
+                    <button className="btn btn-sm btn-icon btn-outline-primary" onClick={setFullPayment} title="Tam Ödeme">
+                      <i className="ri-wallet-3-line"></i>
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr>
-                <td className="text-end fw-bold">Remaining Balance:</td>
+                <td className="text-end fw-bold">Kalan Bakiye:</td>
                 <td colSpan="2" className="fw-bold">
                   {formatCurrency(remainingBalance)}
                 </td>
@@ -369,7 +398,7 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
         </div>
       )}
 
-      {/* New Operation Modal */}
+      {/* Yeni İşlem Modalı */}
       {showNewOperationModal && (
         <div
           className={`modal fade ${showNewOperationModal ? "show" : ""}`}
@@ -382,24 +411,24 @@ function OperationsSelector({ selectedOperations, onOperationSelect, onOperation
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title" id="newOperationModalLabel">
-                  Add New Operation
+                  Yeni İşlem Ekle
                 </h5>
-                <button type="button" className="btn-close" onClick={() => setShowNewOperationModal(false)} aria-label="Close"></button>
+                <button type="button" className="btn-close" onClick={() => setShowNewOperationModal(false)} aria-label="Kapat"></button>
               </div>
               <div className="modal-body">
                 <div className="mb-3">
                   <label htmlFor="operation_name" className="form-label">
-                    Operation Name
+                    İşlem Adı
                   </label>
                   <input type="text" className="form-control" id="operation_name" name="operation_name" value={newOperation.operation_name} onChange={handleNewOperationChange} autoFocus />
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline-secondary" onClick={() => setShowNewOperationModal(false)}>
-                  Cancel
+                  İptal
                 </button>
                 <button type="button" className="btn btn-primary" onClick={handleSaveNewOperation}>
-                  Save Operation
+                  İşlemi Kaydet
                 </button>
               </div>
             </div>

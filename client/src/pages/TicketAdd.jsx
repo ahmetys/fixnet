@@ -2,8 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import * as ticketService from "../services/ticket.service.js";
 import * as ticketLogService from "../services/ticketLog.service.js";
-import { useNotification } from "../hooks/useNotification";
-
+import { useNotification } from "../contexts/NotificationContext";
 import CustomerSelector from "../components/tickets/CustomerSelector";
 import DeviceTypeSelector from "../components/tickets/DeviceTypeSelector";
 import DeviceBrandSelector from "../components/tickets/DeviceBrandSelector";
@@ -13,10 +12,11 @@ import SerialNumberInput from "../components/tickets/SerialNumberInput";
 import AccessoriesInput from "../components/tickets/AccessoriesInput";
 import SparePartsInput from "../components/tickets/SparePartsInput";
 import NotesInput from "../components/tickets/NotesInput";
+
 function TicketAdd() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const { showError, showSuccess } = useNotification();
+  const { showError, showSuccess, handleApiError } = useNotification();
 
   // Only keep the operation costs state here as it's shared between components
   const [operationCosts, setOperationCosts] = useState({});
@@ -67,28 +67,28 @@ function TicketAdd() {
 
     // Temel validasyon kontrolleri
     if (!formData.customer_id) {
-      showError("Customer selection is required");
+      showError("Müşteri seçimi zorunludur");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
     if (!formData.device_type_id) {
-      showError("Device type selection is required");
+      showError("Cihaz türü seçimi zorunludur");
       return;
     }
 
     if (!formData.device_brand_id) {
-      showError("Device brand selection is required");
+      showError("Cihaz markası seçimi zorunludur");
       return;
     }
 
     if (!formData.device_model_id) {
-      showError("Device model selection is required");
+      showError("Cihaz modeli seçimi zorunludur");
       return;
     }
 
     if (!formData.operation_ids || formData.operation_ids.length === 0) {
-      showError("At least one operation must be selected");
+      showError("En az bir işlem seçilmelidir");
       return;
     }
 
@@ -113,13 +113,10 @@ function TicketAdd() {
         }));
       }
 
-      console.log(formattedTicket);
       const result = await ticketService.createTicket(formattedTicket);
 
       // Bilet başarıyla oluşturulduğunda log kaydı oluştur
-      console.log(result);
       if (result && result.ticket_id) {
-        console.log("result.ticket_id", result.ticket_id);
         try {
           await ticketLogService.createTicketLog({
             ticket_id: result.ticket_id,
@@ -135,17 +132,16 @@ function TicketAdd() {
             },
           });
         } catch (logError) {
-          console.error("Bilet log kaydı oluşturulurken hata:", logError);
+          handleApiError(logError);
           // Log kaydı hatasını kullanıcıya gösterme - ana işlem başarılı olduğu için işleme devam et
         }
       }
 
       showSuccess(`#${result.ticket_id} numaralı servis talebi başarıyla oluşturuldu`);
-
       navigate(`/tickets/${result.ticket_id}`);
     } catch (err) {
       showError("Servis talebi oluşturulurken bir hata oluştu");
-      console.error(err);
+      handleApiError(err);
     } finally {
       setLoading(false);
     }
@@ -251,11 +247,11 @@ function TicketAdd() {
       <div className="card bg-transparent shadow-none border-0 my-4">
         <div className="card-body p-0 d-flex justify-content-between align-items-center">
           <div>
-            <h4 className="fw-bold py-3 mb-4"> New Service Ticket</h4>
+            <h4 className="fw-bold py-3 mb-4">Yeni Servis Fişi</h4>
           </div>
           <div>
             <Link to="/tickets" className="btn btn-outline-secondary">
-              <i className="bx bx-arrow-back me-1"></i> Back to Tickets
+              <i className="bx bx-arrow-back me-1"></i> Servis Fişlerine Dön
             </Link>
           </div>
         </div>
@@ -263,7 +259,7 @@ function TicketAdd() {
 
       <div className="card mb-4">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">Create New Support Ticket</h5>
+          <h5 className="mb-0">Yeni Servis Fişi Oluştur</h5>
         </div>
         <div className="card-body">
           <form onSubmit={handleSubmit} autoComplete="off">
@@ -350,21 +346,21 @@ function TicketAdd() {
             <div className="d-flex justify-content-between">
               <div>
                 <small className="text-muted">
-                  <span className="text-danger">*</span> Required fields
+                  <span className="text-danger">*</span> Zorunlu alanlar
                 </small>
               </div>
               <div>
                 <button type="button" className="btn btn-outline-secondary waves-effect" onClick={() => navigate("/tickets")}>
-                  Cancel
+                  İptal
                 </button>
                 <button type="submit" className="btn btn-primary waves-effect waves-light ms-2" disabled={loading}>
                   {loading ? (
                     <>
                       <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                      Creating...
+                      Oluşturuluyor...
                     </>
                   ) : (
-                    "Create Ticket"
+                    "Servis Fişi Oluştur"
                   )}
                 </button>
               </div>

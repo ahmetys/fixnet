@@ -1,7 +1,6 @@
 import pool from "../config/database.js";
 
 export const createTicketLog = async (logData) => {
-  console.log(logData);
   try {
     const { ticket_id, user_id, log_type, log_description, log_details } = logData;
     const [result] = await pool.query(
